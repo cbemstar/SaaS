@@ -15,7 +15,8 @@ import { ConversionsChart } from "@/components/conversions-chart";
 import { KpiCard } from "@/components/kpi-card";
 import { listClientConnectorLinks } from "@/lib/client-connector-links";
 import { channels, getClient, getClientInsights, getConnectorCatalog, getDailyPerformance } from "@/lib/data";
-import { getActiveWorkspaceId } from "@/lib/workspace";
+import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
+import { Ga4DashboardSection } from "@/components/dashboard/ga4-dashboard-section";
 import { buildSparkSeries, calculateTotalsFromPerformance } from "@/lib/dashboard";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
 import { spendForChannels } from "@/lib/performance-data";
@@ -24,6 +25,8 @@ import { cn, formatCurrency } from "@/lib/utils";
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const workspaceId = await getActiveWorkspaceId();
+  const workspace = workspaceId ? await getActiveWorkspace() : null;
+  const currency = workspace?.currency ?? "NZD";
   const authorizedChannelKeys = workspaceId ? await getAuthorizedConnectorChannels(workspaceId) : [];
   const [client, clientInsights, dailyPerformance, connectors, connectorLinks] = await Promise.all([
     getClient(id),
@@ -137,13 +140,27 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </Card>
         )}
 
-        <Tabs defaultValue="overview">
+        <Tabs defaultValue="website">
           <TabsList>
+            <TabsTrigger value="website">Website</TabsTrigger>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="channels">Channels</TabsTrigger>
             <TabsTrigger value="insights">Insights · {clientInsights.length}</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="website" className="space-y-4">
+            {workspaceId ? (
+              <Ga4DashboardSection
+                workspaceId={workspaceId}
+                scope={{ clientId: id }}
+                scopeKey={id}
+                currency={currency}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Sign in to view analytics.</p>
+            )}
+          </TabsContent>
 
           <TabsContent value="overview" className="space-y-4">
             {hasLiveData ? (

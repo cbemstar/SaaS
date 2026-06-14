@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { DashboardContent } from "@/components/dashboard-content";
+import { Ga4DashboardSection } from "@/components/dashboard/ga4-dashboard-section";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
 import { getClientPerformanceSummaries, getDashboardMeta } from "@/lib/dashboard";
 import {
@@ -71,6 +72,22 @@ export default async function DashboardPage() {
       subtitle={`Last 30 days · ${activeCount} active client${activeCount === 1 ? "" : "s"} · ${currency}`}
     >
       <main className="flex-1 space-y-6 p-4 lg:p-6">
+        {workspaceId && (
+          <section className="space-y-3">
+            <div>
+              <h2 className="font-display text-lg font-semibold">Website analytics</h2>
+              <p className="text-sm text-muted-foreground">
+                GA4 metrics across all clients · customize, filter, and rearrange
+              </p>
+            </div>
+            <Ga4DashboardSection
+              workspaceId={workspaceId}
+              scope="overview"
+              scopeKey="overview"
+              currency={currency}
+            />
+          </section>
+        )}
         <DashboardContent
           clients={clients}
           insights={insights}
