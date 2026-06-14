@@ -235,6 +235,81 @@ export type ClientConnectorLinkRow = {
   created_at: string;
 };
 
+export const ga4MetricKeys = [
+  "total_users",
+  "new_users",
+  "active_users",
+  "sessions",
+  "engaged_sessions",
+  "engagement_rate",
+  "average_session_duration",
+  "user_engagement_duration",
+  "sessions_per_user",
+  "screen_page_views",
+  "views_per_session",
+  "event_count",
+  "key_events",
+  "bounce_rate",
+  "total_revenue",
+  "transactions",
+  "purchase_revenue",
+] as const;
+
+export type Ga4MetricKey = (typeof ga4MetricKeys)[number];
+
+export type Ga4DailyMetricsRow = {
+  id: string;
+  workspace_id: string;
+  client_id: string;
+  date: string;
+  created_at: string;
+  updated_at: string;
+} & Record<Ga4MetricKey, number>;
+
+export type Ga4DailyMetricsInsert = {
+  workspace_id: string;
+  client_id: string;
+  date: string;
+} & Partial<Record<Ga4MetricKey, number>> & { id?: string; updated_at?: string };
+
+export type Ga4DimensionType = "channel_group" | "device" | "country" | "landing_page";
+
+export type Ga4BreakdownRow = {
+  id: string;
+  workspace_id: string;
+  client_id: string;
+  date: string;
+  dimension_type: Ga4DimensionType;
+  dimension_value: string;
+  sessions: number;
+  total_users: number;
+  engaged_sessions: number;
+  key_events: number;
+  screen_page_views: number;
+  created_at: string;
+};
+
+export type Ga4BreakdownInsert = Omit<Ga4BreakdownRow, "id" | "created_at"> & { id?: string };
+
+export type DashboardPreferenceRow = {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  scope: string;
+  layout: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DashboardPreferenceInsert = {
+  workspace_id: string;
+  user_id: string;
+  scope: string;
+  layout: Record<string, unknown>;
+  id?: string;
+  updated_at?: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -355,6 +430,24 @@ export type Database = {
         Row: ClientConnectorLinkRow;
         Insert: Omit<ClientConnectorLinkRow, "id" | "created_at"> & { id?: string };
         Update: Partial<Omit<ClientConnectorLinkRow, "id" | "created_at">>;
+        Relationships: [];
+      };
+      ga4_daily_metrics: {
+        Row: Ga4DailyMetricsRow;
+        Insert: Ga4DailyMetricsInsert;
+        Update: Partial<Ga4DailyMetricsInsert>;
+        Relationships: [];
+      };
+      ga4_breakdowns: {
+        Row: Ga4BreakdownRow;
+        Insert: Ga4BreakdownInsert;
+        Update: Partial<Ga4BreakdownInsert>;
+        Relationships: [];
+      };
+      dashboard_preferences: {
+        Row: DashboardPreferenceRow;
+        Insert: DashboardPreferenceInsert;
+        Update: Partial<DashboardPreferenceInsert> & { updated_at?: string };
         Relationships: [];
       };
     };

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelKey } from "@/lib/catalog";
 import type { Database } from "@/lib/supabase/types";
-import { fetchGa4DailyPerformance } from "@/lib/connectors/ga4";
+import { fetchGa4DailyPerformance, fetchGa4Metrics } from "@/lib/connectors/ga4";
 import { fetchGoogleAdsDailyPerformance } from "@/lib/connectors/google-ads";
 import { getGoogleAccessToken } from "@/lib/connectors/google-auth";
 import { fetchMetaDailyPerformance, type PerformanceSeedRow } from "@/lib/connectors/meta";
@@ -93,4 +93,56 @@ export async function pullLivePerformanceForClient(
   }
 
   return liveRows.length ? mergePerformanceRows(liveRows) : null;
+}
+
+/**
+ * Pulls the curated GA4 metric set + dimension breakdowns for a client and
+ * stores them in ga4_daily_metrics / ga4_breakdowns. Runs independently of the
+ * legacy channel-spend pipeline. Returns the number of daily rows written.
+ */
+export async function syncGa4MetricsForClient(
+  admin: AdminClient,
+  workspaceId: string,
+  clientId: string,
+): Promise<number> {
+  const { data: link } = await admin
+    .from("client_connector_links")
+    .select("external_account_id")
+    .eq("workspace_id", workspaceId)
+    .eq("client_id", clientId)
+    .eq("channel", "ga4")
+    .maybeSingle();
+
+  const propertyId = link?.external_account_id;
+  if (!propertyId) return 0;
+
+  const accessToken = await getGoogleAccessToken(admin, workspaceId, "ga4");
+  if (!accessToken) return 0;
+
+  const result = await fetchGa4Metrics(accessToken, propertyId);
+  if (!result) return 0;
+
+  if (result.daily.length) {
+    const updatedAt = new Date().toISOString();
+    const rows = result.daily.map((day) => ({
+      workspace_id: workspaceId,
+      client_id: clientId,
+      updated_at: updatedAt,
+      ...day,
+    }));
+    await admin.from("ga4_daily_metrics").upsert(rows, { onConflict: "workspace_id,client_id,date" });
+  }
+
+  // Re-pull replaces the full rolling window, so clear stale breakdown rows first.
+  await admin.from("ga4_breakdowns").delete().eq("workspace_id", workspaceId).eq("client_id", clientId);
+  if (result.breakdowns.length) {
+    const rows = result.breakdowns.map((breakdown) => ({
+      workspace_id: workspaceId,
+      client_id: clientId,
+      ...breakdown,
+    }));
+    await admin.from("ga4_breakdowns").insert(rows);
+  }
+
+  return result.daily.length;
 }
