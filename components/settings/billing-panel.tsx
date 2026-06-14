@@ -1,0 +1,147 @@
+"use client";
+
+import { useState } from "react";
+import { Check, Sparkles, Zap } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { SettingsCheckoutButton } from "@/components/settings-checkout-button";
+import { cn } from "@/lib/utils";
+import type { PricingPlanName } from "@/lib/billing";
+
+type PlanCard = {
+  name: PricingPlanName;
+  monthly: number;
+  clientLimitLabel: string;
+  features: readonly string[];
+  highlight?: boolean;
+};
+
+type BillingPanelProps = {
+  plans: PlanCard[];
+  currentPlan: PricingPlanName;
+  clientCount: number;
+  clientLimit: number;
+};
+
+const planRank: Record<PricingPlanName, number> = { Solo: 0, Agency: 1, Scale: 2 };
+
+export function BillingPanel({ plans, currentPlan, clientCount, clientLimit }: BillingPanelProps) {
+  const [annual, setAnnual] = useState(false);
+  const usage = clientLimit > 0 ? Math.min(100, Math.round((clientCount / clientLimit) * 100)) : 0;
+  const nearLimit = usage >= 80;
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border bg-gradient-to-br from-primary/10 via-card to-card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-primary">Current plan</div>
+            <div className="mt-1 flex items-center gap-2 font-display text-2xl font-semibold">
+              {currentPlan}
+              <Badge variant="soft" className="gap-1">
+                <Zap className="h-3 w-3" /> Active
+              </Badge>
+            </div>
+          </div>
+          <div className="w-full max-w-xs">
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Active clients</span>
+              <span className={cn("font-medium tabular-nums", nearLimit && "text-warning")}>
+                {clientCount} / {clientLimit}
+              </span>
+            </div>
+            <Progress value={usage} />
+            {nearLimit && (
+              <p className="mt-1.5 text-xs text-warning">You are close to your plan limit — consider upgrading.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-center gap-3 text-sm">
+        <span className={cn(!annual && "font-medium text-foreground", annual && "text-muted-foreground")}>Monthly</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={annual}
+          onClick={() => setAnnual((value) => !value)}
+          className={cn(
+            "relative h-6 w-11 rounded-full transition-colors",
+            annual ? "bg-primary" : "bg-muted",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform",
+              annual ? "translate-x-[22px]" : "translate-x-0.5",
+            )}
+          />
+        </button>
+        <span className={cn(annual && "font-medium text-foreground", !annual && "text-muted-foreground")}>
+          Annual
+        </span>
+        <Badge variant="success" className="ml-1">2 months free</Badge>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {plans.map((plan) => {
+          const isCurrent = plan.name === currentPlan;
+          const monthlyEquivalent = annual ? Math.round((plan.monthly * 10) / 12) : plan.monthly;
+          const isUpgrade = planRank[plan.name] > planRank[currentPlan];
+
+          return (
+            <div
+              key={plan.name}
+              className={cn(
+                "flex flex-col rounded-xl border bg-card p-5 transition-colors",
+                plan.highlight && "border-primary/40 ring-1 ring-primary/15",
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {plan.name}
+                </span>
+                {plan.highlight && (
+                  <Badge className="gap-1">
+                    <Sparkles className="h-3 w-3" /> Popular
+                  </Badge>
+                )}
+              </div>
+              <div className="mt-3 font-display text-3xl font-semibold tabular-nums">
+                ${monthlyEquivalent}
+                <span className="text-sm font-normal text-muted-foreground"> /mo NZD</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {annual ? `Billed annually · $${plan.monthly * 10}/yr` : "Billed monthly"}
+              </p>
+              <p className="mt-3 text-sm font-medium">{plan.clientLimitLabel}</p>
+              <ul className="mt-3 flex-1 space-y-2 text-sm">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                    <span className="text-muted-foreground">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-5">
+                {isCurrent ? (
+                  <Button variant="outline" className="w-full" disabled>
+                    Current plan
+                  </Button>
+                ) : (
+                  <SettingsCheckoutButton
+                    plan={plan.name}
+                    className="w-full"
+                    variant={plan.highlight ? "default" : "outline"}
+                    label={isUpgrade ? `Upgrade to ${plan.name}` : `Switch to ${plan.name}`}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
