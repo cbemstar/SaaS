@@ -32,14 +32,20 @@ export default async function ReportBuilderIndex() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {templates.map((template) => (
-              <Link key={template.id} href={`/reports/builder/${template.id}`} className="group">
-                <Card className="h-full transition-colors group-hover:border-primary/40">
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold">{template.name}</h3>
-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{template.description}</p>
-                  </CardContent>
-                </Card>
-              </Link>
+              <Card key={template.id} className="flex h-full flex-col justify-between transition-colors hover:border-primary/40">
+                <CardContent className="p-4">
+                  <h3 className="font-semibold">{template.name}</h3>
+                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{template.description}</p>
+                </CardContent>
+                <div className="flex items-center gap-3 border-t px-4 py-2 text-sm">
+                  <Link href={`/reports/builder/${template.id}`} className="font-medium text-primary hover:underline">
+                    Edit
+                  </Link>
+                  <Link href={`/reports/view/${template.id}`} className="text-muted-foreground hover:text-foreground">
+                    View / Print
+                  </Link>
+                </div>
+              </Card>
             ))}
           </div>
         )}
