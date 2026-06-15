@@ -17,6 +17,7 @@ export type TemplateInput = {
   description: string;
   sections: string[];
   accent?: string | null;
+  layout?: Record<string, unknown> | null;
 };
 
 function sanitizeSections(sections: string[]) {
@@ -71,6 +72,7 @@ export async function updateTemplate(
   if (input.name !== undefined) patch.name = input.name;
   if (input.description !== undefined) patch.description = input.description;
   if (input.accent !== undefined) patch.accent = input.accent;
+  if (input.layout !== undefined) patch.layout = input.layout;
   if (input.sections !== undefined) {
     const sections = sanitizeSections(input.sections);
     patch.sections = sections;
@@ -116,6 +118,20 @@ export async function duplicateTemplate(workspaceId: string, templateId: string)
     sections: source.sections ?? ["kpi", "ai", "perf"],
     accent: source.accent,
   });
+}
+
+export async function getTemplate(workspaceId: string, templateId: string): Promise<ReportTemplateRow | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+
+  const { data } = await admin
+    .from("report_templates")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("id", templateId)
+    .maybeSingle();
+
+  return data ?? null;
 }
 
 export async function deleteTemplate(workspaceId: string, templateId: string) {

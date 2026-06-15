@@ -57,6 +57,7 @@ export type ReportTemplateRow = {
   sections?: string[];
   accent?: string | null;
   is_default?: boolean;
+  layout?: Record<string, unknown> | null;
   created_at: string;
   updated_at?: string;
 };

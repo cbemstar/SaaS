@@ -7,6 +7,7 @@ import {
   Building2,
   FileBarChart2,
   HelpCircle,
+  LayoutTemplate,
   LifeBuoy,
   Plug,
   Search,
@@ -30,6 +31,7 @@ const sections: Array<{
       { href: "/insights", label: "AI Insights", icon: Sparkles, badge: "12" },
       { href: "/clients", label: "Clients", icon: Building2 },
       { href: "/reports", label: "Reports", icon: FileBarChart2 },
+      { href: "/reports/builder", label: "Report builder", icon: LayoutTemplate },
     ],
   },
   {

@@ -8,6 +8,7 @@ const updateSchema = z.object({
   description: z.string().max(280).optional(),
   sections: z.array(z.string()).optional(),
   accent: z.string().nullable().optional(),
+  layout: z.record(z.string(), z.unknown()).nullable().optional(),
   action: z.literal("duplicate").optional(),
 });
 
