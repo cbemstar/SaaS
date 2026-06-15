@@ -1,6 +1,8 @@
 import { AppShell } from "@/components/app-shell";
 import { DashboardContent } from "@/components/dashboard-content";
 import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
+import { SourceTabs } from "@/components/dashboard/source-tabs";
+import { availableSources } from "@/lib/metrics/store";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
 import { getClientPerformanceSummaries, getDashboardMeta } from "@/lib/dashboard";
 import {
@@ -15,6 +17,7 @@ import { getClients, getConnectorCatalog, getDailyPerformance, getInsights } fro
 
 export default async function DashboardPage() {
   const workspaceId = await getActiveWorkspaceId();
+  const overviewSources = workspaceId ? await availableSources(workspaceId, "overview") : [];
   const authorizedChannelKeys = workspaceId ? await getAuthorizedConnectorChannels(workspaceId) : [];
 
   let mappedClientIds = new Set<string>();
@@ -72,21 +75,26 @@ export default async function DashboardPage() {
       subtitle={`Last 30 days · ${activeCount} active client${activeCount === 1 ? "" : "s"} · ${currency}`}
     >
       <main className="flex-1 space-y-6 p-4 lg:p-6">
-        {workspaceId && (
+        {workspaceId && overviewSources.length > 0 && (
           <section className="space-y-3">
             <div>
-              <h2 className="font-display text-lg font-semibold">Website analytics</h2>
+              <h2 className="font-display text-lg font-semibold">Analytics</h2>
               <p className="text-sm text-muted-foreground">
-                GA4 metrics across all clients · customize, filter, and rearrange
+                Metrics across all clients · switch sources, customize, filter, and rearrange
               </p>
             </div>
-            <SourceDashboardSection
-              workspaceId={workspaceId}
-              source="ga4"
-              scope="overview"
-              scopeBase="overview"
-              currency={currency}
-            />
+            <SourceTabs sources={overviewSources}>
+              {overviewSources.map((source) => (
+                <SourceDashboardSection
+                  key={source}
+                  workspaceId={workspaceId}
+                  source={source}
+                  scope="overview"
+                  scopeBase="overview"
+                  currency={currency}
+                />
+              ))}
+            </SourceTabs>
           </section>
         )}
         <DashboardContent

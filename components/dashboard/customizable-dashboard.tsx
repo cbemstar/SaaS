@@ -129,7 +129,9 @@ export function CustomizableDashboard({
   );
 
   const trendOptions = useMemo(() => {
-    const all = (def?.metrics ?? []).filter((m) => !m.ecommerce || showEcommerce).map((m) => m.key);
+    const all = (def?.metrics ?? [])
+      .filter((m) => (!m.ecommerce || showEcommerce) && !m.hidden)
+      .map((m) => m.key);
     return filter ? all.filter((k) => breakdownMetrics.has(k)) : all;
   }, [def, filter, showEcommerce, breakdownMetrics]);
 

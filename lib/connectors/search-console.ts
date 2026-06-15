@@ -1,9 +1,12 @@
 import type { PerformanceSeedRow } from "@/lib/connectors/meta";
+import type { SourceMetricsResult } from "@/lib/metrics/catalog";
 
 type GscRow = {
   keys?: string[];
   clicks?: number;
   impressions?: number;
+  ctr?: number;
+  position?: number;
 };
 
 function formatLabel(date: string) {
@@ -83,6 +86,83 @@ export async function fetchSearchConsoleDailyPerformance(
     })
     .filter((row): row is PerformanceSeedRow => row !== null)
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Rich Search Console metrics for the generic store: daily clicks/impressions
+ * (+ impression-weighted position for correct averaging), per-date country/device
+ * breakdowns (filterable), and top queries/pages (display only).
+ */
+export async function fetchSearchConsoleMetrics(
+  accessToken: string,
+  siteUrl: string,
+): Promise<SourceMetricsResult | null> {
+  const site = normalizeSearchConsoleSiteUrl(siteUrl);
+  const { startDate, endDate } = formatDateRange();
+  const url = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`;
+
+  const run = async (body: Record<string, unknown>): Promise<GscRow[]> => {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ startDate, endDate, ...body }),
+    });
+    if (!res.ok) {
+      console.error("Search Console query failed", res.status, await res.text());
+      return [];
+    }
+    return ((await res.json()) as { rows?: GscRow[] }).rows ?? [];
+  };
+
+  const dailyRows = await run({ dimensions: ["date"], rowLimit: 1000 });
+  const daily = dailyRows
+    .filter((row) => row.keys?.[0])
+    .map((row) => {
+      const impressions = Number(row.impressions ?? 0);
+      return {
+        date: row.keys![0],
+        metrics: {
+          clicks: Number(row.clicks ?? 0),
+          impressions,
+          position_weight: Number(row.position ?? 0) * impressions,
+        },
+      };
+    });
+
+  const maxDate = daily.at(-1)?.date ?? endDate;
+  const breakdowns: SourceMetricsResult["breakdowns"] = [];
+
+  for (const dim of ["country", "device"] as const) {
+    const rows = await run({ dimensions: ["date", dim], rowLimit: 25000 });
+    for (const row of rows) {
+      const date = row.keys?.[0];
+      const value = row.keys?.[1];
+      if (!date || value == null) continue;
+      breakdowns.push({
+        date,
+        dimension_type: dim,
+        dimension_value: value,
+        metrics: { clicks: Number(row.clicks ?? 0), impressions: Number(row.impressions ?? 0) },
+      });
+    }
+  }
+
+  for (const dim of ["query", "page"] as const) {
+    const rows = await run({ dimensions: [dim], rowLimit: 25 });
+    for (const row of rows) {
+      const value = row.keys?.[0];
+      if (value == null) continue;
+      breakdowns.push({
+        date: maxDate,
+        dimension_type: dim,
+        dimension_value: value,
+        metrics: { clicks: Number(row.clicks ?? 0), impressions: Number(row.impressions ?? 0) },
+      });
+    }
+  }
+
+  if (!daily.length && !breakdowns.length) return null;
+  return { daily, breakdowns };
 }
 
 export async function listSearchConsoleSites(accessToken: string) {

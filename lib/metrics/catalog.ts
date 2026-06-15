@@ -21,6 +21,8 @@ export type MetricDef = {
   /** For derived metrics: compute from a totals record of additive metrics. */
   derive?: (totals: Record<string, number>) => number;
   ecommerce?: boolean;
+  /** Stored + used in derivations but not shown as a pickable card/trend (e.g. weighting helpers). */
+  hidden?: boolean;
 };
 
 export type DimensionDef = {
@@ -87,14 +89,80 @@ const GA4: SourceDef = {
   defaultTrend: "sessions",
 };
 
+// --- Search Console ----------------------------------------------------------
+
+const SEARCH_CONSOLE: SourceDef = {
+  key: "search_console",
+  label: "Search Console",
+  short: "Search",
+  metrics: [
+    { key: "clicks", label: "Clicks", short: "Clicks", format: "number", higherIsBetter: true, additive: true },
+    { key: "impressions", label: "Impressions", short: "Impr.", format: "number", higherIsBetter: true, additive: true },
+    // Impression-weighted position sum; hidden, used to derive average position correctly.
+    { key: "position_weight", label: "Position weight", short: "Pos. wt", format: "decimal", higherIsBetter: false, additive: true, hidden: true },
+    { key: "ctr", label: "CTR", short: "CTR", format: "percent", higherIsBetter: true, additive: false, derive: (t) => (t.impressions > 0 ? t.clicks / t.impressions : 0) },
+    { key: "avg_position", label: "Avg. position", short: "Position", format: "decimal", higherIsBetter: false, additive: false, derive: (t) => (t.impressions > 0 ? t.position_weight / t.impressions : 0) },
+  ],
+  dimensions: [
+    { type: "query", label: "Query", filterable: false },
+    { type: "page", label: "Page", filterable: false },
+    { type: "country", label: "Country", filterable: true },
+    { type: "device", label: "Device", filterable: true },
+  ],
+  breakdownMetrics: ["clicks", "impressions"],
+  defaultCards: [
+    { metric: "clicks", size: "sm" },
+    { metric: "impressions", size: "sm" },
+    { metric: "ctr", size: "sm" },
+    { metric: "avg_position", size: "sm" },
+  ],
+  defaultTrend: "clicks",
+};
+
+// --- Google Ads --------------------------------------------------------------
+
+const GOOGLE_ADS: SourceDef = {
+  key: "google_ads",
+  label: "Google Ads",
+  short: "Google Ads",
+  metrics: [
+    { key: "cost", label: "Cost", short: "Cost", format: "currency", higherIsBetter: false, additive: true },
+    { key: "impressions", label: "Impressions", short: "Impr.", format: "number", higherIsBetter: true, additive: true },
+    { key: "clicks", label: "Clicks", short: "Clicks", format: "number", higherIsBetter: true, additive: true },
+    { key: "conversions", label: "Conversions", short: "Conv.", format: "number", higherIsBetter: true, additive: true },
+    { key: "conversions_value", label: "Conversion value", short: "Conv. val.", format: "currency", higherIsBetter: true, additive: true },
+    { key: "ctr", label: "CTR", short: "CTR", format: "percent", higherIsBetter: true, additive: false, derive: (t) => (t.impressions > 0 ? t.clicks / t.impressions : 0) },
+    { key: "cpc", label: "Avg. CPC", short: "CPC", format: "currency", higherIsBetter: false, additive: false, derive: (t) => (t.clicks > 0 ? t.cost / t.clicks : 0) },
+    { key: "cpa", label: "Cost / conv.", short: "CPA", format: "currency", higherIsBetter: false, additive: false, derive: (t) => (t.conversions > 0 ? t.cost / t.conversions : 0) },
+    { key: "conversion_rate", label: "Conv. rate", short: "CvR", format: "percent", higherIsBetter: true, additive: false, derive: (t) => (t.clicks > 0 ? t.conversions / t.clicks : 0) },
+    { key: "roas", label: "ROAS", short: "ROAS", format: "decimal", higherIsBetter: true, additive: false, derive: (t) => (t.cost > 0 ? t.conversions_value / t.cost : 0) },
+  ],
+  dimensions: [
+    { type: "campaign", label: "Campaign", filterable: true },
+    { type: "device", label: "Device", filterable: true },
+  ],
+  breakdownMetrics: ["cost", "impressions", "clicks", "conversions"],
+  defaultCards: [
+    { metric: "cost", size: "sm" },
+    { metric: "clicks", size: "sm" },
+    { metric: "conversions", size: "sm" },
+    { metric: "ctr", size: "sm" },
+    { metric: "impressions", size: "sm" },
+    { metric: "cpc", size: "sm" },
+    { metric: "cpa", size: "sm" },
+    { metric: "roas", size: "sm" },
+  ],
+  defaultTrend: "cost",
+};
+
 // Additional sources are registered as their connectors are implemented.
 export const SOURCES: Record<MetricSource, SourceDef | undefined> = {
   ga4: GA4,
   meta: undefined,
-  google_ads: undefined,
+  google_ads: GOOGLE_ADS,
   linkedin: undefined,
   tiktok: undefined,
-  search_console: undefined,
+  search_console: SEARCH_CONSOLE,
 };
 
 export function getSourceDef(source: MetricSource): SourceDef | null {
@@ -146,6 +214,12 @@ export function deltaPercent(current: number, previous: number): number | null {
 
 export type MetricTotals = Record<string, number>;
 export type DailyPoint = { date: string; label: string; metrics: MetricTotals };
+
+/** What a connector's rich fetch returns, ready for the metric store. */
+export type SourceMetricsResult = {
+  daily: Array<{ date: string; metrics: MetricTotals }>;
+  breakdowns: Array<{ date: string; dimension_type: string; dimension_value: string; metrics: MetricTotals }>;
+};
 export type Scope = "overview" | { clientId: string };
 export type MetricFilter = { dimensionType: string; value: string } | null;
 

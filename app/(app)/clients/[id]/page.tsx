@@ -17,6 +17,8 @@ import { listClientConnectorLinks } from "@/lib/client-connector-links";
 import { channels, getClient, getClientInsights, getConnectorCatalog, getDailyPerformance } from "@/lib/data";
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
 import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
+import { SourceTabs } from "@/components/dashboard/source-tabs";
+import { availableSources } from "@/lib/metrics/store";
 import { buildSparkSeries, calculateTotalsFromPerformance } from "@/lib/dashboard";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
 import { spendForChannels } from "@/lib/performance-data";
@@ -27,6 +29,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   const workspaceId = await getActiveWorkspaceId();
   const workspace = workspaceId ? await getActiveWorkspace() : null;
   const currency = workspace?.currency ?? "NZD";
+  const dashboardSources = workspaceId ? await availableSources(workspaceId, { clientId: id }) : [];
   const authorizedChannelKeys = workspaceId ? await getAuthorizedConnectorChannels(workspaceId) : [];
   const [client, clientInsights, dailyPerformance, connectors, connectorLinks] = await Promise.all([
     getClient(id),
@@ -150,16 +153,29 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </TabsList>
 
           <TabsContent value="website" className="space-y-4">
-            {workspaceId ? (
-              <SourceDashboardSection
-                workspaceId={workspaceId}
-                source="ga4"
-                scope={{ clientId: id }}
-                scopeBase={id}
-                currency={currency}
-              />
-            ) : (
+            {!workspaceId ? (
               <p className="text-sm text-muted-foreground">Sign in to view analytics.</p>
+            ) : dashboardSources.length === 0 ? (
+              <div className="rounded-xl border border-dashed bg-card p-12 text-center">
+                <h2 className="font-display text-lg font-semibold">No analytics data yet</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Connect this client to GA4, Search Console, Google Ads, or another source on the Connectors
+                  page, then run a sync.
+                </p>
+              </div>
+            ) : (
+              <SourceTabs sources={dashboardSources}>
+                {dashboardSources.map((source) => (
+                  <SourceDashboardSection
+                    key={source}
+                    workspaceId={workspaceId}
+                    source={source}
+                    scope={{ clientId: id }}
+                    scopeBase={id}
+                    currency={currency}
+                  />
+                ))}
+              </SourceTabs>
             )}
           </TabsContent>
 

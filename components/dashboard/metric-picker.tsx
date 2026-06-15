@@ -15,7 +15,7 @@ type MetricPickerProps = {
 
 export function MetricPicker({ source, active, onToggle, showEcommerce }: MetricPickerProps) {
   const activeSet = new Set(active);
-  const metrics = (getSourceDef(source)?.metrics ?? []).filter((m) => !m.ecommerce || showEcommerce);
+  const metrics = (getSourceDef(source)?.metrics ?? []).filter((m) => (!m.ecommerce || showEcommerce) && !m.hidden);
   const core = metrics.filter((m) => !m.ecommerce);
   const ecommerce = metrics.filter((m) => m.ecommerce);
 

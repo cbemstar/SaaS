@@ -2,12 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelKey } from "@/lib/catalog";
 import type { Database } from "@/lib/supabase/types";
 import { fetchGa4DailyPerformance, fetchGa4Metrics } from "@/lib/connectors/ga4";
-import { additiveKeys } from "@/lib/metrics/catalog";
+import { additiveKeys, type MetricSource, type SourceMetricsResult } from "@/lib/metrics/catalog";
 import { writeBreakdowns, writeDailyMetrics } from "@/lib/metrics/store";
-import { fetchGoogleAdsDailyPerformance } from "@/lib/connectors/google-ads";
+import { fetchGoogleAdsDailyPerformance, fetchGoogleAdsMetrics } from "@/lib/connectors/google-ads";
 import { getGoogleAccessToken } from "@/lib/connectors/google-auth";
 import { fetchMetaDailyPerformance, type PerformanceSeedRow } from "@/lib/connectors/meta";
-import { fetchSearchConsoleDailyPerformance } from "@/lib/connectors/search-console";
+import { fetchSearchConsoleDailyPerformance, fetchSearchConsoleMetrics } from "@/lib/connectors/search-console";
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -97,63 +97,122 @@ export async function pullLivePerformanceForClient(
   return liveRows.length ? mergePerformanceRows(liveRows) : null;
 }
 
-/**
- * Pulls the curated GA4 metric set + dimension breakdowns for a client and
- * stores them in ga4_daily_metrics / ga4_breakdowns. Runs independently of the
- * legacy channel-spend pipeline. Returns the number of daily rows written.
- */
-export async function syncGa4MetricsForClient(
+async function getClientLink(
   admin: AdminClient,
   workspaceId: string,
   clientId: string,
-): Promise<number> {
-  const { data: link } = await admin
+  channel: ChannelKey,
+): Promise<string | null> {
+  const { data } = await admin
     .from("client_connector_links")
     .select("external_account_id")
     .eq("workspace_id", workspaceId)
     .eq("client_id", clientId)
-    .eq("channel", "ga4")
+    .eq("channel", channel)
     .maybeSingle();
+  return data?.external_account_id ?? null;
+}
 
-  const propertyId = link?.external_account_id;
-  if (!propertyId) return 0;
-
-  const accessToken = await getGoogleAccessToken(admin, workspaceId, "ga4");
-  if (!accessToken) return 0;
-
-  const result = await fetchGa4Metrics(accessToken, propertyId);
+/** Writes a connector's rich result to the generic store (additive metrics only; rates derive on read). */
+async function writeSourceResult(
+  admin: AdminClient,
+  workspaceId: string,
+  clientId: string,
+  source: MetricSource,
+  result: SourceMetricsResult | null,
+): Promise<number> {
   if (!result) return 0;
-
-  const adds = additiveKeys("ga4");
+  const adds = new Set(additiveKeys(source));
   await writeDailyMetrics(
     admin,
     workspaceId,
     clientId,
-    "ga4",
-    result.daily.map((day) => {
-      const row = day as unknown as Record<string, number>;
-      return { date: day.date, metrics: Object.fromEntries(adds.map((key) => [key, row[key] ?? 0])) };
-    }),
+    source,
+    result.daily.map((day) => ({
+      date: day.date,
+      metrics: Object.fromEntries(Object.entries(day.metrics).filter(([key]) => adds.has(key))),
+    })),
   );
+  await writeBreakdowns(admin, workspaceId, clientId, source, result.breakdowns);
+  return result.daily.length;
+}
 
-  await writeBreakdowns(
+export async function syncGa4MetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {
+  const propertyId = await getClientLink(admin, workspaceId, clientId, "ga4");
+  if (!propertyId) return 0;
+  const accessToken = await getGoogleAccessToken(admin, workspaceId, "ga4");
+  if (!accessToken) return 0;
+  const result = await fetchGa4Metrics(accessToken, propertyId);
+  if (!result) return 0;
+
+  const adapted: SourceMetricsResult = {
+    daily: result.daily.map((day) => ({ date: day.date, metrics: day as unknown as Record<string, number> })),
+    breakdowns: result.breakdowns.map((b) => ({
+      date: b.date,
+      dimension_type: b.dimension_type,
+      dimension_value: b.dimension_value,
+      metrics: {
+        sessions: b.sessions,
+        total_users: b.total_users,
+        engaged_sessions: b.engaged_sessions,
+        key_events: b.key_events,
+        screen_page_views: b.screen_page_views,
+      },
+    })),
+  };
+  return writeSourceResult(admin, workspaceId, clientId, "ga4", adapted);
+}
+
+export async function syncSearchConsoleMetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {
+  const siteUrl = await getClientLink(admin, workspaceId, clientId, "search_console");
+  if (!siteUrl) return 0;
+  const accessToken = await getGoogleAccessToken(admin, workspaceId, "search_console");
+  if (!accessToken) return 0;
+  return writeSourceResult(
     admin,
     workspaceId,
     clientId,
-    "ga4",
-    result.breakdowns.map((breakdown) => ({
-      date: breakdown.date,
-      dimension_type: breakdown.dimension_type,
-      dimension_value: breakdown.dimension_value,
-      metrics: {
-        sessions: breakdown.sessions,
-        total_users: breakdown.total_users,
-        engaged_sessions: breakdown.engaged_sessions,
-        key_events: breakdown.key_events,
-        screen_page_views: breakdown.screen_page_views,
-      },
-    })),
+    "search_console",
+    await fetchSearchConsoleMetrics(accessToken, siteUrl),
   );
+}
 
-  return result.daily.length;
+export async function syncGoogleAdsMetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {
+  const customerId = await getClientLink(admin, workspaceId, clientId, "google_ads");
+  const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+  if (!customerId || !developerToken) return 0;
+  const accessToken = await getGoogleAccessToken(admin, workspaceId, "google_ads");
+  if (!accessToken) return 0;
+  return writeSourceResult(
+    admin,
+    workspaceId,
+    clientId,
+    "google_ads",
+    await fetchGoogleAdsMetrics(accessToken, customerId, developerToken),
+  );
+}
+
+/** Pulls rich metrics into the generic store for every supported channel a client has. */
+export async function syncRichMetricsForClient(
+  admin: AdminClient,
+  workspaceId: string,
+  clientId: string,
+  channels: ChannelKey[],
+) {
+  const jobs: Array<Promise<unknown>> = [];
+  if (channels.includes("ga4"))
+    jobs.push(syncGa4MetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("GA4 sync failed", e)));
+  if (channels.includes("search_console"))
+    jobs.push(
+      syncSearchConsoleMetricsForClient(admin, workspaceId, clientId).catch((e) =>
+        console.error("Search Console sync failed", e),
+      ),
+    );
+  if (channels.includes("google_ads"))
+    jobs.push(
+      syncGoogleAdsMetricsForClient(admin, workspaceId, clientId).catch((e) =>
+        console.error("Google Ads sync failed", e),
+      ),
+    );
+  await Promise.all(jobs);
 }

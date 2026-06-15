@@ -9,7 +9,7 @@ import {
   mergePerformanceSeedRow,
   sanitizeDisconnectedChannelMetrics,
 } from "@/lib/performance-data";
-import { pullLivePerformanceForClient, syncGa4MetricsForClient } from "@/lib/connectors/sync-live";
+import { pullLivePerformanceForClient, syncRichMetricsForClient } from "@/lib/connectors/sync-live";
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -187,13 +187,7 @@ async function runWorkspaceSync(
       continue;
     }
 
-    if (channelsForSync.includes("ga4")) {
-      try {
-        await syncGa4MetricsForClient(admin, workspaceId, client.id);
-      } catch (error) {
-        console.error("GA4 metrics sync failed", error);
-      }
-    }
+    await syncRichMetricsForClient(admin, workspaceId, client.id, channelsForSync);
 
     const imported = await upsertClientPerformance(
       admin,
