@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { DashboardContent } from "@/components/dashboard-content";
-import { Ga4DashboardSection } from "@/components/dashboard/ga4-dashboard-section";
+import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
 import { getClientPerformanceSummaries, getDashboardMeta } from "@/lib/dashboard";
 import {
@@ -80,10 +80,11 @@ export default async function DashboardPage() {
                 GA4 metrics across all clients · customize, filter, and rearrange
               </p>
             </div>
-            <Ga4DashboardSection
+            <SourceDashboardSection
               workspaceId={workspaceId}
+              source="ga4"
               scope="overview"
-              scopeKey="overview"
+              scopeBase="overview"
               currency={currency}
             />
           </section>

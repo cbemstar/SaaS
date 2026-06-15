@@ -2,22 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspaceId } from "@/lib/workspace";
 import { getDashboardLayout, saveDashboardLayout } from "@/lib/dashboard-preferences";
-import { ga4MetricKeys } from "@/lib/ga4-aggregate";
-import type { DashboardLayout } from "@/lib/ga4-aggregate";
-
-const metricKey = z.enum(ga4MetricKeys as unknown as [string, ...string[]]);
+import type { DashboardLayout } from "@/lib/metrics/catalog";
 
 const layoutSchema = z.object({
-  cards: z
-    .array(z.object({ metric: metricKey, size: z.enum(["sm", "md", "lg"]) }))
-    .max(24),
-  trendMetric: metricKey,
+  cards: z.array(z.object({ metric: z.string().max(64), size: z.enum(["sm", "md", "lg"]) })).max(40),
+  trendMetric: z.string().max(64),
   days: z.number().int().min(1).max(365),
   filter: z
-    .object({
-      dimensionType: z.enum(["channel_group", "device", "country", "landing_page"]),
-      value: z.string().max(512),
-    })
+    .object({ dimensionType: z.string().max(64), value: z.string().max(512) })
     .nullable(),
 });
 

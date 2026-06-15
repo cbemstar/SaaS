@@ -310,6 +310,28 @@ export type DashboardPreferenceInsert = {
   updated_at?: string;
 };
 
+export type MetricDailyRow = {
+  workspace_id: string;
+  client_id: string;
+  source: string;
+  date: string;
+  metric_key: string;
+  value: number;
+  updated_at?: string;
+};
+
+export type MetricBreakdownRow = {
+  workspace_id: string;
+  client_id: string;
+  source: string;
+  date: string;
+  dimension_type: string;
+  dimension_value: string;
+  metric_key: string;
+  value: number;
+  updated_at?: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -448,6 +470,18 @@ export type Database = {
         Row: DashboardPreferenceRow;
         Insert: DashboardPreferenceInsert;
         Update: Partial<DashboardPreferenceInsert> & { updated_at?: string };
+        Relationships: [];
+      };
+      metric_daily: {
+        Row: MetricDailyRow;
+        Insert: MetricDailyRow;
+        Update: Partial<MetricDailyRow>;
+        Relationships: [];
+      };
+      metric_breakdown: {
+        Row: MetricBreakdownRow;
+        Insert: MetricBreakdownRow;
+        Update: Partial<MetricBreakdownRow>;
         Relationships: [];
       };
     };

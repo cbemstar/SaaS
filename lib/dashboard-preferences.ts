@@ -1,6 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getAuthUserId } from "@/lib/workspace";
-import type { DashboardLayout } from "@/lib/ga4-aggregate";
+import type { DashboardLayout } from "@/lib/metrics/catalog";
 
 /**
  * Per-user dashboard layout (which cards, order, sizes, filters) for a scope

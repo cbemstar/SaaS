@@ -4,35 +4,25 @@ import { Check, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { METRIC_CONFIG, type Ga4MetricKey } from "@/lib/ga4-aggregate";
-
-const GROUPS: Array<{ label: string; keys: Ga4MetricKey[]; ecommerce?: boolean }> = [
-  { label: "Audience", keys: ["total_users", "new_users", "active_users", "sessions", "sessions_per_user"] },
-  {
-    label: "Engagement",
-    keys: [
-      "engaged_sessions",
-      "engagement_rate",
-      "bounce_rate",
-      "average_session_duration",
-      "user_engagement_duration",
-      "screen_page_views",
-      "views_per_session",
-      "event_count",
-      "key_events",
-    ],
-  },
-  { label: "Ecommerce", keys: ["total_revenue", "transactions", "purchase_revenue"], ecommerce: true },
-];
+import { getSourceDef, type MetricSource } from "@/lib/metrics/catalog";
 
 type MetricPickerProps = {
-  active: Ga4MetricKey[];
-  onToggle: (metric: Ga4MetricKey) => void;
+  source: MetricSource;
+  active: string[];
+  onToggle: (metric: string) => void;
   showEcommerce: boolean;
 };
 
-export function MetricPicker({ active, onToggle, showEcommerce }: MetricPickerProps) {
+export function MetricPicker({ source, active, onToggle, showEcommerce }: MetricPickerProps) {
   const activeSet = new Set(active);
+  const metrics = (getSourceDef(source)?.metrics ?? []).filter((m) => !m.ecommerce || showEcommerce);
+  const core = metrics.filter((m) => !m.ecommerce);
+  const ecommerce = metrics.filter((m) => m.ecommerce);
+
+  const groups = [
+    { label: "Metrics", items: core },
+    ...(ecommerce.length ? [{ label: "Ecommerce", items: ecommerce }] : []),
+  ];
 
   return (
     <Dialog>
@@ -46,25 +36,23 @@ export function MetricPicker({ active, onToggle, showEcommerce }: MetricPickerPr
           <DialogTitle>Dashboard metrics</DialogTitle>
         </DialogHeader>
         <div className="max-h-[60vh] space-y-4 overflow-y-auto">
-          {GROUPS.filter((group) => !group.ecommerce || showEcommerce).map((group) => (
+          {groups.map((group) => (
             <div key={group.label}>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {group.label}
-              </p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{group.label}</p>
               <div className="grid grid-cols-2 gap-2">
-                {group.keys.map((key) => {
-                  const on = activeSet.has(key);
+                {group.items.map((metric) => {
+                  const on = activeSet.has(metric.key);
                   return (
                     <button
-                      key={key}
+                      key={metric.key}
                       type="button"
-                      onClick={() => onToggle(key)}
+                      onClick={() => onToggle(metric.key)}
                       className={cn(
                         "flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors active:scale-[0.98]",
                         on ? "border-primary bg-primary/5" : "hover:bg-muted/60",
                       )}
                     >
-                      <span className="truncate">{METRIC_CONFIG[key].label}</span>
+                      <span className="truncate">{metric.label}</span>
                       {on && <Check className="h-4 w-4 shrink-0 text-primary" />}
                     </button>
                   );

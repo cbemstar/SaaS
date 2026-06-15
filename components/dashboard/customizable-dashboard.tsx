@@ -9,12 +9,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  rectSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
+import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { BarChart3 } from "lucide-react";
 import { FilterBar } from "@/components/dashboard/filter-bar";
@@ -23,21 +18,18 @@ import { TrendCard } from "@/components/dashboard/trend-card";
 import { BreakdownTableCard } from "@/components/dashboard/breakdown-table-card";
 import { cn } from "@/lib/utils";
 import {
-  DEFAULT_LAYOUT,
-  FILTERABLE_KEYS,
-  METRIC_CONFIG,
   aggregateTotals,
   dailyFromBreakdown,
-  ga4MetricKeys,
+  defaultLayout,
+  getSourceDef,
   hasEcommerce,
   sliceWindows,
+  type BreakdownRaw,
   type CardSize,
+  type DailyPoint,
   type DashboardLayout,
-  type Ga4BreakdownRaw,
-  type Ga4DailyPoint,
-  type Ga4DimensionType,
-  type Ga4MetricKey,
-} from "@/lib/ga4-aggregate";
+  type MetricSource,
+} from "@/lib/metrics/catalog";
 
 const SPAN: Record<CardSize, string> = {
   sm: "col-span-1",
@@ -47,14 +39,13 @@ const SPAN: Record<CardSize, string> = {
 
 const NEXT_SIZE: Record<CardSize, CardSize> = { sm: "md", md: "lg", lg: "sm" };
 
-const BREAKDOWN_ORDER: Ga4DimensionType[] = ["channel_group", "device", "country", "landing_page"];
-
 type CustomizableDashboardProps = {
+  source: MetricSource;
   scopeKey: string;
   currency: string;
   hasData: boolean;
-  daily: Ga4DailyPoint[];
-  breakdowns: Ga4BreakdownRaw[];
+  daily: DailyPoint[];
+  breakdowns: BreakdownRaw[];
   initialLayout: DashboardLayout | null;
 };
 
@@ -73,7 +64,6 @@ function SortableMetricCard({
     id,
     disabled: !editing,
   });
-
   return (
     <div
       ref={setNodeRef}
@@ -86,6 +76,7 @@ function SortableMetricCard({
 }
 
 export function CustomizableDashboard({
+  source,
   scopeKey,
   currency,
   hasData,
@@ -93,14 +84,13 @@ export function CustomizableDashboard({
   breakdowns,
   initialLayout,
 }: CustomizableDashboardProps) {
-  const [layout, setLayout] = useState<DashboardLayout>(initialLayout ?? DEFAULT_LAYOUT);
+  const [layout, setLayout] = useState<DashboardLayout>(initialLayout ?? defaultLayout(source));
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const firstRender = useRef(true);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  // Persist layout (debounced) whenever it changes, after the initial mount.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
@@ -119,30 +109,32 @@ export function CustomizableDashboard({
     return () => clearTimeout(timer);
   }, [layout, scopeKey]);
 
+  const def = getSourceDef(source);
+  const breakdownMetrics = useMemo(() => new Set(def?.breakdownMetrics ?? []), [def]);
   const filter = layout.filter;
 
   const activeDaily = useMemo(
-    () => (filter ? dailyFromBreakdown(breakdowns, filter) : daily),
-    [filter, breakdowns, daily],
+    () => (filter ? dailyFromBreakdown(source, breakdowns, filter) : daily),
+    [filter, breakdowns, daily, source],
   );
 
-  const { current, previous } = useMemo(
-    () => sliceWindows(activeDaily, layout.days),
-    [activeDaily, layout.days],
+  const { current, previous } = useMemo(() => sliceWindows(activeDaily, layout.days), [activeDaily, layout.days]);
+
+  const currentTotals = useMemo(() => aggregateTotals(source, current.map((p) => p.metrics)), [source, current]);
+  const previousTotals = useMemo(() => aggregateTotals(source, previous.map((p) => p.metrics)), [source, previous]);
+
+  const showEcommerce = useMemo(
+    () => hasEcommerce(source, aggregateTotals(source, daily.map((p) => p.metrics))),
+    [source, daily],
   );
 
-  const currentTotals = useMemo(() => aggregateTotals(current), [current]);
-  const previousTotals = useMemo(() => aggregateTotals(previous), [previous]);
+  const trendOptions = useMemo(() => {
+    const all = (def?.metrics ?? []).filter((m) => !m.ecommerce || showEcommerce).map((m) => m.key);
+    return filter ? all.filter((k) => breakdownMetrics.has(k)) : all;
+  }, [def, filter, showEcommerce, breakdownMetrics]);
 
-  const showEcommerce = useMemo(() => hasEcommerce(aggregateTotals(daily)), [daily]);
-
-  const trendOptions = useMemo(
-    () =>
-      (filter ? FILTERABLE_KEYS : ga4MetricKeys.filter((k) => !METRIC_CONFIG[k].ecommerce || showEcommerce)),
-    [filter, showEcommerce],
-  );
-
-  const trendMetric = trendOptions.includes(layout.trendMetric) ? layout.trendMetric : "sessions";
+  const trendMetric = trendOptions.includes(layout.trendMetric) ? layout.trendMetric : trendOptions[0] ?? "";
+  const trendSeries = current.map((p) => ({ label: p.label, value: p.metrics[trendMetric] ?? 0 }));
 
   const activeMetrics = layout.cards.map((card) => card.metric);
 
@@ -150,24 +142,22 @@ export function CustomizableDashboard({
     setLayout((prev) => ({ ...prev, ...partial }));
   }
 
-  function toggleMetric(metric: Ga4MetricKey) {
+  function toggleMetric(metric: string) {
     setLayout((prev) => {
       const exists = prev.cards.some((card) => card.metric === metric);
       return {
         ...prev,
         cards: exists
           ? prev.cards.filter((card) => card.metric !== metric)
-          : [...prev.cards, { metric, size: "sm" }],
+          : [...prev.cards, { metric, size: "sm" as CardSize }],
       };
     });
   }
 
-  function resizeCard(metric: Ga4MetricKey) {
+  function resizeCard(metric: string) {
     setLayout((prev) => ({
       ...prev,
-      cards: prev.cards.map((card) =>
-        card.metric === metric ? { ...card, size: NEXT_SIZE[card.size] } : card,
-      ),
+      cards: prev.cards.map((card) => (card.metric === metric ? { ...card, size: NEXT_SIZE[card.size] } : card)),
     }));
   }
 
@@ -189,19 +179,23 @@ export function CustomizableDashboard({
           <BarChart3 className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="font-display text-lg font-semibold">No GA4 data yet</h2>
+          <h2 className="font-display text-lg font-semibold">No {def?.label ?? source} data yet</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Connect a GA4 property to this client and run a sync from the Connectors page to populate
-            this dashboard.
+            Connect this source to the client and run a sync from the Connectors page to populate this view.
           </p>
         </div>
       </div>
     );
   }
 
+  const dimensionsWithData = (def?.dimensions ?? []).filter((d) =>
+    breakdowns.some((row) => row.dimension_type === d.type),
+  );
+
   return (
     <div className="space-y-4">
       <FilterBar
+        source={source}
         days={layout.days}
         onDaysChange={(days) => updateLayout({ days })}
         filter={filter}
@@ -212,28 +206,24 @@ export function CustomizableDashboard({
         onToggleMetric={toggleMetric}
         showEcommerce={showEcommerce}
         saving={saving}
-        onReset={() => setLayout(DEFAULT_LAYOUT)}
+        onReset={() => setLayout(defaultLayout(source))}
       />
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={activeMetrics} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {layout.cards.map((card) => {
-              const available = !filter || FILTERABLE_KEYS.includes(card.metric);
+              const available = !filter || breakdownMetrics.has(card.metric);
               return (
-                <SortableMetricCard
-                  key={card.metric}
-                  id={card.metric}
-                  editing={editing}
-                  span={SPAN[card.size]}
-                >
+                <SortableMetricCard key={card.metric} id={card.metric} editing={editing} span={SPAN[card.size]}>
                   {(handleProps) => (
                     <MetricCard
+                      source={source}
                       metric={card.metric}
                       size={card.size}
-                      current={currentTotals[card.metric]}
-                      previous={previousTotals[card.metric]}
-                      series={current.map((point) => ({ label: point.label, value: point[card.metric] }))}
+                      current={currentTotals[card.metric] ?? 0}
+                      previous={previousTotals[card.metric] ?? 0}
+                      series={current.map((p) => ({ label: p.label, value: p.metrics[card.metric] ?? 0 }))}
                       currency={currency}
                       available={available}
                       editing={editing}
@@ -249,29 +239,31 @@ export function CustomizableDashboard({
         </SortableContext>
       </DndContext>
 
-      <TrendCard
-        metric={trendMetric}
-        daily={current}
-        options={trendOptions}
-        currency={currency}
-        onMetricChange={(metric) => updateLayout({ trendMetric: metric })}
-      />
+      {trendMetric && (
+        <TrendCard
+          source={source}
+          metric={trendMetric}
+          series={trendSeries}
+          options={trendOptions}
+          currency={currency}
+          onMetricChange={(metric) => updateLayout({ trendMetric: metric })}
+        />
+      )}
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {BREAKDOWN_ORDER.filter((type) => breakdowns.some((row) => row.dimension_type === type)).map(
-          (type) => (
+      {dimensionsWithData.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {dimensionsWithData.map((dim) => (
             <BreakdownTableCard
-              key={type}
-              dimensionType={type}
+              key={dim.type}
+              source={source}
+              dimensionType={dim.type}
               rows={breakdowns}
               filter={filter}
-              onFilter={(value) =>
-                updateLayout({ filter: value ? { dimensionType: type, value } : null })
-              }
+              onFilter={(value) => updateLayout({ filter: value ? { dimensionType: dim.type, value } : null })}
             />
-          ),
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

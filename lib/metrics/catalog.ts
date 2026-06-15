@@ -1,0 +1,270 @@
+// Source-agnostic metric catalog. Every connector describes its metrics here:
+// label, display format, whether it sums across days (additive) or is derived
+// from sums (rates/ratios). This drives ingestion, aggregation, and display
+// uniformly across all sources, so dashboards/reports treat GA4, Meta, LinkedIn,
+// etc. the same way.
+
+export type MetricSource = "ga4" | "meta" | "google_ads" | "linkedin" | "tiktok" | "search_console";
+
+export type MetricFormat = "number" | "percent" | "decimal" | "duration" | "currency";
+
+export type CardSize = "sm" | "md" | "lg";
+
+export type MetricDef = {
+  key: string;
+  label: string;
+  short: string;
+  format: MetricFormat;
+  higherIsBetter: boolean;
+  /** true = sum across days; false = derived from other metrics via `derive`. */
+  additive: boolean;
+  /** For derived metrics: compute from a totals record of additive metrics. */
+  derive?: (totals: Record<string, number>) => number;
+  ecommerce?: boolean;
+};
+
+export type DimensionDef = {
+  type: string;
+  label: string;
+  filterable: boolean;
+};
+
+export type SourceDef = {
+  key: MetricSource;
+  label: string;
+  /** Short label for the source switcher. */
+  short: string;
+  metrics: MetricDef[];
+  dimensions: DimensionDef[];
+  /** Metric keys carried on breakdown rows (the filterable subset). */
+  breakdownMetrics: string[];
+  defaultCards: Array<{ metric: string; size: CardSize }>;
+  defaultTrend: string;
+};
+
+// --- GA4 ---------------------------------------------------------------------
+
+const GA4: SourceDef = {
+  key: "ga4",
+  label: "Website (GA4)",
+  short: "Website",
+  metrics: [
+    { key: "total_users", label: "Total users", short: "Users", format: "number", higherIsBetter: true, additive: true },
+    { key: "new_users", label: "New users", short: "New users", format: "number", higherIsBetter: true, additive: true },
+    { key: "active_users", label: "Active users", short: "Active", format: "number", higherIsBetter: true, additive: true },
+    { key: "sessions", label: "Sessions", short: "Sessions", format: "number", higherIsBetter: true, additive: true },
+    { key: "engaged_sessions", label: "Engaged sessions", short: "Engaged", format: "number", higherIsBetter: true, additive: true },
+    { key: "screen_page_views", label: "Page views", short: "Views", format: "number", higherIsBetter: true, additive: true },
+    { key: "event_count", label: "Events", short: "Events", format: "number", higherIsBetter: true, additive: true },
+    { key: "key_events", label: "Key events", short: "Key events", format: "number", higherIsBetter: true, additive: true },
+    { key: "user_engagement_duration", label: "Total engagement time", short: "Engmt. time", format: "duration", higherIsBetter: true, additive: true },
+    { key: "total_revenue", label: "Total revenue", short: "Revenue", format: "currency", higherIsBetter: true, additive: true, ecommerce: true },
+    { key: "transactions", label: "Transactions", short: "Txns", format: "number", higherIsBetter: true, additive: true, ecommerce: true },
+    { key: "purchase_revenue", label: "Purchase revenue", short: "Purch. rev.", format: "currency", higherIsBetter: true, additive: true, ecommerce: true },
+    { key: "engagement_rate", label: "Engagement rate", short: "Engagement", format: "percent", higherIsBetter: true, additive: false, derive: (t) => (t.sessions > 0 ? t.engaged_sessions / t.sessions : 0) },
+    { key: "bounce_rate", label: "Bounce rate", short: "Bounce", format: "percent", higherIsBetter: false, additive: false, derive: (t) => (t.sessions > 0 ? 1 - t.engaged_sessions / t.sessions : 0) },
+    { key: "sessions_per_user", label: "Sessions per user", short: "Sess./user", format: "decimal", higherIsBetter: true, additive: false, derive: (t) => (t.total_users > 0 ? t.sessions / t.total_users : 0) },
+    { key: "views_per_session", label: "Views per session", short: "Views/sess.", format: "decimal", higherIsBetter: true, additive: false, derive: (t) => (t.sessions > 0 ? t.screen_page_views / t.sessions : 0) },
+    { key: "average_session_duration", label: "Avg. engagement / session", short: "Avg. time", format: "duration", higherIsBetter: true, additive: false, derive: (t) => (t.sessions > 0 ? t.user_engagement_duration / t.sessions : 0) },
+  ],
+  dimensions: [
+    { type: "channel_group", label: "Channel", filterable: true },
+    { type: "device", label: "Device", filterable: true },
+    { type: "country", label: "Country", filterable: true },
+    { type: "landing_page", label: "Landing page", filterable: false },
+  ],
+  breakdownMetrics: ["sessions", "total_users", "engaged_sessions", "key_events", "screen_page_views"],
+  defaultCards: [
+    { metric: "total_users", size: "sm" },
+    { metric: "sessions", size: "sm" },
+    { metric: "engagement_rate", size: "sm" },
+    { metric: "key_events", size: "sm" },
+    { metric: "new_users", size: "sm" },
+    { metric: "screen_page_views", size: "sm" },
+    { metric: "average_session_duration", size: "sm" },
+    { metric: "bounce_rate", size: "sm" },
+  ],
+  defaultTrend: "sessions",
+};
+
+// Additional sources are registered as their connectors are implemented.
+export const SOURCES: Record<MetricSource, SourceDef | undefined> = {
+  ga4: GA4,
+  meta: undefined,
+  google_ads: undefined,
+  linkedin: undefined,
+  tiktok: undefined,
+  search_console: undefined,
+};
+
+export function getSourceDef(source: MetricSource): SourceDef | null {
+  return SOURCES[source] ?? null;
+}
+
+export function getMetricDef(source: MetricSource, key: string): MetricDef | null {
+  return getSourceDef(source)?.metrics.find((m) => m.key === key) ?? null;
+}
+
+export function additiveKeys(source: MetricSource): string[] {
+  return getSourceDef(source)?.metrics.filter((m) => m.additive).map((m) => m.key) ?? [];
+}
+
+// --- Formatting --------------------------------------------------------------
+
+function formatDuration(seconds: number) {
+  const total = Math.round(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+export function formatMetric(source: MetricSource, key: string, value: number, currency = "NZD"): string {
+  const def = getMetricDef(source, key);
+  switch (def?.format) {
+    case "percent":
+      return `${(value * 100).toFixed(1)}%`;
+    case "decimal":
+      return value.toFixed(2);
+    case "duration":
+      return formatDuration(value);
+    case "currency":
+      return new Intl.NumberFormat("en-NZ", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+    default:
+      return new Intl.NumberFormat("en-NZ", {
+        notation: value >= 100000 ? "compact" : "standard",
+        maximumFractionDigits: value >= 100000 ? 1 : 0,
+      }).format(value);
+  }
+}
+
+export function deltaPercent(current: number, previous: number): number | null {
+  if (!previous) return null;
+  return ((current - previous) / previous) * 100;
+}
+
+// --- Shared data shapes + aggregation (client-safe, no DB) -------------------
+
+export type MetricTotals = Record<string, number>;
+export type DailyPoint = { date: string; label: string; metrics: MetricTotals };
+export type Scope = "overview" | { clientId: string };
+export type MetricFilter = { dimensionType: string; value: string } | null;
+
+export type BreakdownRaw = {
+  date: string;
+  dimension_type: string;
+  dimension_value: string;
+  metrics: MetricTotals;
+};
+
+export type DashboardLayout = {
+  cards: Array<{ metric: string; size: CardSize }>;
+  trendMetric: string;
+  days: number;
+  filter: MetricFilter;
+};
+
+export function defaultLayout(source: MetricSource): DashboardLayout {
+  const def = getSourceDef(source);
+  return {
+    cards: def?.defaultCards ?? [],
+    trendMetric: def?.defaultTrend ?? "",
+    days: 30,
+    filter: null,
+  };
+}
+
+export function emptyTotals(source: MetricSource): MetricTotals {
+  const totals: MetricTotals = {};
+  for (const metric of getSourceDef(source)?.metrics ?? []) totals[metric.key] = 0;
+  return totals;
+}
+
+export function applyDerived(source: MetricSource, totals: MetricTotals): MetricTotals {
+  for (const metric of getSourceDef(source)?.metrics ?? []) {
+    if (!metric.additive && metric.derive) totals[metric.key] = metric.derive(totals);
+  }
+  return totals;
+}
+
+export function aggregateTotals(source: MetricSource, points: Array<Partial<MetricTotals>>): MetricTotals {
+  const totals = emptyTotals(source);
+  for (const point of points) {
+    for (const key of additiveKeys(source)) totals[key] += point[key] ?? 0;
+  }
+  return applyDerived(source, totals);
+}
+
+export function formatDayLabel(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-NZ", { day: "numeric", month: "short" });
+}
+
+function dateMinusDays(anchor: string, days: number) {
+  const d = new Date(`${anchor}T00:00:00`);
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function sliceWindows(points: DailyPoint[], days: number) {
+  if (!points.length) return { current: [] as DailyPoint[], previous: [] as DailyPoint[] };
+  const anchor = points[points.length - 1].date;
+  const currentCutoff = dateMinusDays(anchor, days);
+  const previousCutoff = dateMinusDays(anchor, days * 2);
+  return {
+    current: points.filter((p) => p.date > currentCutoff),
+    previous: points.filter((p) => p.date > previousCutoff && p.date <= currentCutoff),
+  };
+}
+
+export function dailyFromBreakdown(
+  source: MetricSource,
+  rows: BreakdownRaw[],
+  filter: MetricFilter,
+): DailyPoint[] {
+  if (!filter) return [];
+  const keys = getSourceDef(source)?.breakdownMetrics ?? [];
+  const byDate = new Map<string, DailyPoint>();
+  for (const row of rows) {
+    if (row.dimension_type !== filter.dimensionType || row.dimension_value !== filter.value) continue;
+    let point = byDate.get(row.date);
+    if (!point) {
+      point = { date: row.date, label: formatDayLabel(row.date), metrics: emptyTotals(source) };
+      byDate.set(row.date, point);
+    }
+    for (const key of keys) point.metrics[key] += row.metrics[key] ?? 0;
+  }
+  return [...byDate.values()]
+    .map((point) => ({ ...point, metrics: applyDerived(source, point.metrics) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export type BreakdownEntry = { value: string; metrics: MetricTotals };
+
+export function rankBreakdown(
+  source: MetricSource,
+  rows: BreakdownRaw[],
+  dimensionType: string,
+  limit = 8,
+): BreakdownEntry[] {
+  const keys = getSourceDef(source)?.breakdownMetrics ?? [];
+  const byValue = new Map<string, BreakdownEntry>();
+  for (const row of rows) {
+    if (row.dimension_type !== dimensionType) continue;
+    let entry = byValue.get(row.dimension_value);
+    if (!entry) {
+      entry = { value: row.dimension_value, metrics: {} };
+      for (const key of keys) entry.metrics[key] = 0;
+      byValue.set(row.dimension_value, entry);
+    }
+    for (const key of keys) entry.metrics[key] += row.metrics[key] ?? 0;
+  }
+  const sortKey = keys[0] ?? "sessions";
+  return [...byValue.values()]
+    .sort((a, b) => (b.metrics[sortKey] ?? 0) - (a.metrics[sortKey] ?? 0))
+    .slice(0, limit);
+}
+
+export function hasEcommerce(source: MetricSource, totals: MetricTotals): boolean {
+  return (getSourceDef(source)?.metrics ?? [])
+    .filter((m) => m.ecommerce)
+    .some((m) => (totals[m.key] ?? 0) > 0);
+}

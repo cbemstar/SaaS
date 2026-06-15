@@ -16,7 +16,7 @@ import { KpiCard } from "@/components/kpi-card";
 import { listClientConnectorLinks } from "@/lib/client-connector-links";
 import { channels, getClient, getClientInsights, getConnectorCatalog, getDailyPerformance } from "@/lib/data";
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
-import { Ga4DashboardSection } from "@/components/dashboard/ga4-dashboard-section";
+import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
 import { buildSparkSeries, calculateTotalsFromPerformance } from "@/lib/dashboard";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
 import { spendForChannels } from "@/lib/performance-data";
@@ -151,10 +151,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
           <TabsContent value="website" className="space-y-4">
             {workspaceId ? (
-              <Ga4DashboardSection
+              <SourceDashboardSection
                 workspaceId={workspaceId}
+                source="ga4"
                 scope={{ clientId: id }}
-                scopeKey={id}
+                scopeBase={id}
                 currency={currency}
               />
             ) : (

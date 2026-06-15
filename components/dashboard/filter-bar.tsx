@@ -4,7 +4,7 @@ import { Check, Pencil, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetricPicker } from "@/components/dashboard/metric-picker";
-import { DIMENSION_META, type Ga4Filter, type Ga4MetricKey } from "@/lib/ga4-aggregate";
+import { getSourceDef, type MetricFilter, type MetricSource } from "@/lib/metrics/catalog";
 
 const DAY_OPTIONS = [
   { value: "7", label: "Last 7 days" },
@@ -13,20 +13,22 @@ const DAY_OPTIONS = [
 ];
 
 type FilterBarProps = {
+  source: MetricSource;
   days: number;
   onDaysChange: (days: number) => void;
-  filter: Ga4Filter;
+  filter: MetricFilter;
   onClearFilter: () => void;
   editing: boolean;
   onToggleEditing: () => void;
-  activeMetrics: Ga4MetricKey[];
-  onToggleMetric: (metric: Ga4MetricKey) => void;
+  activeMetrics: string[];
+  onToggleMetric: (metric: string) => void;
   showEcommerce: boolean;
   saving: boolean;
   onReset: () => void;
 };
 
 export function FilterBar({
+  source,
   days,
   onDaysChange,
   filter,
@@ -39,6 +41,10 @@ export function FilterBar({
   saving,
   onReset,
 }: FilterBarProps) {
+  const dimLabel = filter
+    ? getSourceDef(source)?.dimensions.find((d) => d.type === filter.dimensionType)?.label ?? filter.dimensionType
+    : null;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={String(days)} onValueChange={(value) => onDaysChange(Number(value))}>
@@ -60,25 +66,20 @@ export function FilterBar({
           onClick={onClearFilter}
           className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
         >
-          {DIMENSION_META[filter.dimensionType].label}: {filter.value || "(not set)"}
+          {dimLabel}: {filter.value || "(not set)"}
           <X className="h-3 w-3" />
         </button>
       )}
 
       <div className="ml-auto flex items-center gap-2">
         {saving && <span className="text-xs text-muted-foreground">Saving…</span>}
-        <MetricPicker active={activeMetrics} onToggle={onToggleMetric} showEcommerce={showEcommerce} />
+        <MetricPicker source={source} active={activeMetrics} onToggle={onToggleMetric} showEcommerce={showEcommerce} />
         {editing && (
           <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={onReset}>
             <RotateCcw className="h-3.5 w-3.5" /> Reset
           </Button>
         )}
-        <Button
-          variant={editing ? "default" : "outline"}
-          size="sm"
-          className="gap-1.5"
-          onClick={onToggleEditing}
-        >
+        <Button variant={editing ? "default" : "outline"} size="sm" className="gap-1.5" onClick={onToggleEditing}>
           {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
           {editing ? "Done" : "Customize"}
         </Button>

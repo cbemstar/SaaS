@@ -3,31 +3,35 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
-  DIMENSION_META,
   formatMetric,
+  getSourceDef,
   rankBreakdown,
-  type Ga4BreakdownRaw,
-  type Ga4DimensionType,
-  type Ga4Filter,
-} from "@/lib/ga4-aggregate";
+  type BreakdownRaw,
+  type MetricFilter,
+  type MetricSource,
+} from "@/lib/metrics/catalog";
 
 type BreakdownTableCardProps = {
-  dimensionType: Ga4DimensionType;
-  rows: Ga4BreakdownRaw[];
-  filter: Ga4Filter;
+  source: MetricSource;
+  dimensionType: string;
+  rows: BreakdownRaw[];
+  filter: MetricFilter;
   onFilter?: (value: string | null) => void;
 };
 
-export function BreakdownTableCard({ dimensionType, rows, filter, onFilter }: BreakdownTableCardProps) {
-  const meta = DIMENSION_META[dimensionType];
-  const entries = rankBreakdown(rows, dimensionType, 8);
-  const max = entries[0]?.sessions ?? 0;
-  const interactive = meta.filterable && Boolean(onFilter);
+export function BreakdownTableCard({ source, dimensionType, rows, filter, onFilter }: BreakdownTableCardProps) {
+  const def = getSourceDef(source);
+  const dim = def?.dimensions.find((d) => d.type === dimensionType);
+  const primaryKey = def?.breakdownMetrics[0] ?? "sessions";
+  const entries = rankBreakdown(source, rows, dimensionType, 8);
+  const max = entries[0]?.metrics[primaryKey] ?? 0;
+  const interactive = Boolean(dim?.filterable) && Boolean(onFilter);
+  const label = dim?.label ?? dimensionType;
 
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Top {meta.label.toLowerCase()}s</CardTitle>
+        <CardTitle className="text-base">Top {label.toLowerCase()}s</CardTitle>
       </CardHeader>
       <CardContent>
         {entries.length === 0 ? (
@@ -36,7 +40,8 @@ export function BreakdownTableCard({ dimensionType, rows, filter, onFilter }: Br
           <div className="space-y-1">
             {entries.map((entry) => {
               const active = filter?.dimensionType === dimensionType && filter.value === entry.value;
-              const pct = max > 0 ? (entry.sessions / max) * 100 : 0;
+              const value = entry.metrics[primaryKey] ?? 0;
+              const pct = max > 0 ? (value / max) * 100 : 0;
               const Row = interactive ? "button" : "div";
               return (
                 <Row
@@ -49,25 +54,19 @@ export function BreakdownTableCard({ dimensionType, rows, filter, onFilter }: Br
                     active && "ring-1 ring-primary",
                   )}
                 >
-                  <span
-                    aria-hidden
-                    className="absolute inset-y-0 left-0 bg-primary/10"
-                    style={{ width: `${pct}%` }}
-                  />
+                  <span aria-hidden className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: `${pct}%` }} />
                   <span className="relative z-10 truncate" title={entry.value}>
                     {entry.value || "(not set)"}
                   </span>
                   <span className="relative z-10 font-mono text-xs tabular-nums text-muted-foreground">
-                    {formatMetric("sessions", entry.sessions)}
+                    {formatMetric(source, primaryKey, value)}
                   </span>
                 </Row>
               );
             })}
           </div>
         )}
-        {interactive && (
-          <p className="mt-2 text-[11px] text-muted-foreground">Tap a row to filter the dashboard.</p>
-        )}
+        {interactive && <p className="mt-2 text-[11px] text-muted-foreground">Tap a row to filter the dashboard.</p>}
       </CardContent>
     </Card>
   );

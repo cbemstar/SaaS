@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelKey } from "@/lib/catalog";
 import type { Database } from "@/lib/supabase/types";
 import { fetchGa4DailyPerformance, fetchGa4Metrics } from "@/lib/connectors/ga4";
+import { additiveKeys } from "@/lib/metrics/catalog";
+import { writeBreakdowns, writeDailyMetrics } from "@/lib/metrics/store";
 import { fetchGoogleAdsDailyPerformance } from "@/lib/connectors/google-ads";
 import { getGoogleAccessToken } from "@/lib/connectors/google-auth";
 import { fetchMetaDailyPerformance, type PerformanceSeedRow } from "@/lib/connectors/meta";
@@ -122,27 +124,36 @@ export async function syncGa4MetricsForClient(
   const result = await fetchGa4Metrics(accessToken, propertyId);
   if (!result) return 0;
 
-  if (result.daily.length) {
-    const updatedAt = new Date().toISOString();
-    const rows = result.daily.map((day) => ({
-      workspace_id: workspaceId,
-      client_id: clientId,
-      updated_at: updatedAt,
-      ...day,
-    }));
-    await admin.from("ga4_daily_metrics").upsert(rows, { onConflict: "workspace_id,client_id,date" });
-  }
+  const adds = additiveKeys("ga4");
+  await writeDailyMetrics(
+    admin,
+    workspaceId,
+    clientId,
+    "ga4",
+    result.daily.map((day) => {
+      const row = day as unknown as Record<string, number>;
+      return { date: day.date, metrics: Object.fromEntries(adds.map((key) => [key, row[key] ?? 0])) };
+    }),
+  );
 
-  // Re-pull replaces the full rolling window, so clear stale breakdown rows first.
-  await admin.from("ga4_breakdowns").delete().eq("workspace_id", workspaceId).eq("client_id", clientId);
-  if (result.breakdowns.length) {
-    const rows = result.breakdowns.map((breakdown) => ({
-      workspace_id: workspaceId,
-      client_id: clientId,
-      ...breakdown,
-    }));
-    await admin.from("ga4_breakdowns").insert(rows);
-  }
+  await writeBreakdowns(
+    admin,
+    workspaceId,
+    clientId,
+    "ga4",
+    result.breakdowns.map((breakdown) => ({
+      date: breakdown.date,
+      dimension_type: breakdown.dimension_type,
+      dimension_value: breakdown.dimension_value,
+      metrics: {
+        sessions: breakdown.sessions,
+        total_users: breakdown.total_users,
+        engaged_sessions: breakdown.engaged_sessions,
+        key_events: breakdown.key_events,
+        screen_page_views: breakdown.screen_page_views,
+      },
+    })),
+  );
 
   return result.daily.length;
 }
