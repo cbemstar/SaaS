@@ -1,20 +1,18 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Download, ExternalLink, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Calendar, Download, ExternalLink, Send } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ClientSettingsForm } from "@/components/client-settings-form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChannelPill } from "@/components/channel-pill";
 import { InsightCard } from "@/components/insight-card";
-import { PerformanceChart } from "@/components/performance-chart";
-import { ConversionsChart } from "@/components/conversions-chart";
 import { KpiCard } from "@/components/kpi-card";
 import { listClientConnectorLinks } from "@/lib/client-connector-links";
-import { channels, getClient, getClientInsights, getConnectorCatalog, getDailyPerformance } from "@/lib/data";
+import { getClient, getClientInsights, getConnectorCatalog, getDailyPerformance } from "@/lib/data";
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
 import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
 import { SourceTabs } from "@/components/dashboard/source-tabs";
@@ -146,9 +144,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
         <Tabs defaultValue="website">
           <TabsList>
-            <TabsTrigger value="website">Website</TabsTrigger>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="channels">Channels</TabsTrigger>
+            <TabsTrigger value="website">Analytics</TabsTrigger>
             <TabsTrigger value="insights">Insights · {clientInsights.length}</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -179,89 +175,6 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 ))}
               </SourceTabs>
             )}
-          </TabsContent>
-
-          <TabsContent value="overview" className="space-y-4">
-            {hasLiveData ? (
-              <div className="grid gap-4 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle>Daily spend by channel</CardTitle>
-                    <CardDescription>Connected sources only · NZD</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <PerformanceChart data={filteredPerformance} activeChannels={connectedChannelKeys} />
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Conversions</CardTitle>
-                    <CardDescription>Synced metrics</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ConversionsChart data={filteredPerformance} />
-                  </CardContent>
-                </Card>
-              </div>
-            ) : (
-              <Card className="p-8 text-center text-sm text-muted-foreground">
-                No performance data yet. Connect channels in Settings or run a sync from Connectors.
-              </Card>
-            )}
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </div>
-                  <div>
-                    <CardTitle>AI narrative — {client.name}</CardTitle>
-                    <CardDescription>Plain-English summary from your metrics</CardDescription>
-                  </div>
-                </div>
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/insights">View insights</Link>
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <p className="text-pretty text-sm leading-relaxed text-muted-foreground">
-                  {clientInsights[0]?.body ??
-                    "Generate insights from the Insights page once you have connected channels and performance data."}
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="channels" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {client.channels.map((ch) => {
-                const c = channels[ch];
-                const connector = connectors.find((item) => item.key === ch);
-                return (
-                  <Card key={ch} className="overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
-                        <CardTitle className="text-base">{c.label}</CardTitle>
-                      </div>
-                      <Badge variant={connector?.status === "connected" ? "success" : "muted"}>
-                        {connector?.status === "connected" ? "Connected" : "Not connected"}
-                      </Badge>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Spend (est.)</span>
-                        <span className="font-semibold tabular-nums">{formatCurrency(client.monthlySpend / client.channels.length)}</span>
-                      </div>
-                      <Button asChild variant="outline" size="sm" className="w-full">
-                        <Link href={`/connectors?channel=${ch}`}>Set up {c.short}</Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
           </TabsContent>
 
           <TabsContent value="insights" className="space-y-3">
