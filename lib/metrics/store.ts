@@ -19,6 +19,20 @@ function clientIdsForScope(scope: Scope): string[] | null {
   return scope === "overview" ? null : [scope.clientId];
 }
 
+const PAGE = 1000;
+
+/** Pages through a Supabase select (default cap is 1000 rows) and returns all rows. */
+async function selectAll<T>(buildPage: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await buildPage(from, from + PAGE - 1);
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
 // --- Writes (service role, during connector sync) ----------------------------
 
 export type DailyMetricInput = { date: string; metrics: Record<string, number> };
@@ -100,18 +114,19 @@ export async function readDaily(workspaceId: string, scope: Scope, source: Metri
   const supabase = await createSupabaseServerClient();
   if (!supabase) return [];
 
-  let query = supabase
-    .from("metric_daily")
-    .select("date, metric_key, value")
-    .eq("workspace_id", workspaceId)
-    .eq("source", source);
   const clientIds = clientIdsForScope(scope);
-  if (clientIds) query = query.in("client_id", clientIds);
-
-  const { data } = await query;
+  const data = await selectAll<{ date: string; metric_key: string; value: number }>((from, to) => {
+    let q = supabase
+      .from("metric_daily")
+      .select("date, metric_key, value")
+      .eq("workspace_id", workspaceId)
+      .eq("source", source);
+    if (clientIds) q = q.in("client_id", clientIds);
+    return q.range(from, to);
+  });
   const adds = new Set(additiveKeys(source));
   const byDate = new Map<string, DailyPoint>();
-  for (const row of (data ?? []) as Array<{ date: string; metric_key: string; value: number }>) {
+  for (const row of data) {
     let point = byDate.get(row.date);
     if (!point) {
       point = { date: row.date, label: formatDayLabel(row.date), metrics: emptyTotals(source) };
@@ -135,23 +150,24 @@ export async function readBreakdownRaw(
   const supabase = await createSupabaseServerClient();
   if (!supabase) return [];
 
-  let query = supabase
-    .from("metric_breakdown")
-    .select("date, dimension_type, dimension_value, metric_key, value")
-    .eq("workspace_id", workspaceId)
-    .eq("source", source);
   const clientIds = clientIdsForScope(scope);
-  if (clientIds) query = query.in("client_id", clientIds);
-
-  const { data } = await query;
-  const byKey = new Map<string, BreakdownRaw>();
-  for (const row of (data ?? []) as Array<{
+  const data = await selectAll<{
     date: string;
     dimension_type: string;
     dimension_value: string;
     metric_key: string;
     value: number;
-  }>) {
+  }>((from, to) => {
+    let q = supabase
+      .from("metric_breakdown")
+      .select("date, dimension_type, dimension_value, metric_key, value")
+      .eq("workspace_id", workspaceId)
+      .eq("source", source);
+    if (clientIds) q = q.in("client_id", clientIds);
+    return q.range(from, to);
+  });
+  const byKey = new Map<string, BreakdownRaw>();
+  for (const row of data) {
     const key = `${row.date}|${row.dimension_type}|${row.dimension_value}`;
     let entry = byKey.get(key);
     if (!entry) {

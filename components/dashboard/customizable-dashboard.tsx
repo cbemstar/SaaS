@@ -23,9 +23,10 @@ import {
   defaultLayout,
   getSourceDef,
   hasEcommerce,
-  sliceWindows,
+  resolveWindows,
   type BreakdownRaw,
   type CardSize,
+  type CompareMode,
   type DailyPoint,
   type DashboardLayout,
   type MetricSource,
@@ -118,7 +119,16 @@ export function CustomizableDashboard({
     [filter, breakdowns, daily, source],
   );
 
-  const { current, previous } = useMemo(() => sliceWindows(activeDaily, layout.days), [activeDaily, layout.days]);
+  const { current, previous } = useMemo(
+    () =>
+      resolveWindows(activeDaily, {
+        days: layout.days,
+        rangeStart: layout.rangeStart,
+        rangeEnd: layout.rangeEnd,
+        compare: layout.compare ?? "none",
+      }),
+    [activeDaily, layout.days, layout.rangeStart, layout.rangeEnd, layout.compare],
+  );
 
   const currentTotals = useMemo(() => aggregateTotals(source, current.map((p) => p.metrics)), [source, current]);
   const previousTotals = useMemo(() => aggregateTotals(source, previous.map((p) => p.metrics)), [source, previous]);
@@ -199,7 +209,12 @@ export function CustomizableDashboard({
       <FilterBar
         source={source}
         days={layout.days}
-        onDaysChange={(days) => updateLayout({ days })}
+        rangeStart={layout.rangeStart}
+        rangeEnd={layout.rangeEnd}
+        compare={layout.compare ?? "none"}
+        onDaysChange={(days) => updateLayout({ days, rangeStart: undefined, rangeEnd: undefined })}
+        onCustomRange={(rangeStart, rangeEnd) => updateLayout({ rangeStart, rangeEnd })}
+        onCompareChange={(compare: CompareMode) => updateLayout({ compare })}
         filter={filter}
         onClearFilter={() => updateLayout({ filter: null })}
         editing={editing}

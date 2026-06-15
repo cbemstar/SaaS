@@ -7,10 +7,11 @@ import type { DashboardLayout } from "@/lib/metrics/catalog";
 const layoutSchema = z.object({
   cards: z.array(z.object({ metric: z.string().max(64), size: z.enum(["sm", "md", "lg"]) })).max(40),
   trendMetric: z.string().max(64),
-  days: z.number().int().min(1).max(365),
-  filter: z
-    .object({ dimensionType: z.string().max(64), value: z.string().max(512) })
-    .nullable(),
+  days: z.number().int().min(1).max(3650),
+  rangeStart: z.string().max(10).optional(),
+  rangeEnd: z.string().max(10).optional(),
+  compare: z.enum(["none", "previous", "year"]).optional(),
+  filter: z.object({ dimensionType: z.string().max(64), value: z.string().max(512) }).nullable(),
 });
 
 const bodySchema = z.object({

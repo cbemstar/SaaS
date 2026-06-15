@@ -61,9 +61,13 @@ function splitWeights(n: number) {
   return raw.map((w) => w / sum);
 }
 
+const DAILY_DAYS = 400; // ~13 months so year-over-year comparison is testable
+const BREAKDOWN_DAYS = 90; // breakdowns kept to a recent window to bound row counts
+
 /** Seeds realistic sample metrics for one client across all sources. Idempotent (overwrites). */
 export async function seedClientSampleData(admin: AdminClient, workspaceId: string, clientId: string) {
-  const days = lastDays(30);
+  const days = lastDays(DAILY_DAYS);
+  const breakdownCutoff = days.length - BREAKDOWN_DAYS;
 
   for (const source of SOURCES) {
     const def = getSourceDef(source);
@@ -89,6 +93,7 @@ export async function seedClientSampleData(admin: AdminClient, workspaceId: stri
       }
       daily.push({ date, metrics });
 
+      if (index < breakdownCutoff) return;
       for (const dim of def.dimensions) {
         const values = DIMS[source]?.[dim.type] ?? [];
         const weights = splitWeights(values.length);

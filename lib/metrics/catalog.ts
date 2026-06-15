@@ -289,10 +289,16 @@ export type BreakdownRaw = {
   metrics: MetricTotals;
 };
 
+export type CompareMode = "none" | "previous" | "year";
+
 export type DashboardLayout = {
   cards: Array<{ metric: string; size: CardSize }>;
   trendMetric: string;
   days: number;
+  /** Optional explicit custom range (overrides `days`). */
+  rangeStart?: string;
+  rangeEnd?: string;
+  compare?: CompareMode;
   filter: MetricFilter;
 };
 
@@ -302,6 +308,7 @@ export function defaultLayout(source: MetricSource): DashboardLayout {
     cards: def?.defaultCards ?? [],
     trendMetric: def?.defaultTrend ?? "",
     days: 30,
+    compare: "none",
     filter: null,
   };
 }
@@ -331,21 +338,46 @@ export function formatDayLabel(date: string) {
   return new Date(`${date}T00:00:00`).toLocaleDateString("en-NZ", { day: "numeric", month: "short" });
 }
 
-function dateMinusDays(anchor: string, days: number) {
-  const d = new Date(`${anchor}T00:00:00`);
-  d.setDate(d.getDate() - days);
+function addDays(date: string, delta: number) {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + delta);
   return d.toISOString().slice(0, 10);
 }
 
-export function sliceWindows(points: DailyPoint[], days: number) {
-  if (!points.length) return { current: [] as DailyPoint[], previous: [] as DailyPoint[] };
+function addYears(date: string, delta: number) {
+  const d = new Date(`${date}T00:00:00`);
+  d.setFullYear(d.getFullYear() + delta);
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetween(start: string, end: string) {
+  return Math.round((Date.parse(`${end}T00:00:00`) - Date.parse(`${start}T00:00:00`)) / 86400000) + 1;
+}
+
+export type RangeSpec = { days: number; rangeStart?: string; rangeEnd?: string; compare?: CompareMode };
+
+/**
+ * Resolves the current window and the comparison window (previous period or
+ * previous year) from a range spec, anchored to the latest available date.
+ */
+export function resolveWindows(points: DailyPoint[], spec: RangeSpec) {
+  if (!points.length) return { current: [] as DailyPoint[], previous: [] as DailyPoint[], start: "", end: "" };
   const anchor = points[points.length - 1].date;
-  const currentCutoff = dateMinusDays(anchor, days);
-  const previousCutoff = dateMinusDays(anchor, days * 2);
-  return {
-    current: points.filter((p) => p.date > currentCutoff),
-    previous: points.filter((p) => p.date > previousCutoff && p.date <= currentCutoff),
-  };
+  const end = spec.rangeEnd ?? anchor;
+  const start = spec.rangeStart ?? addDays(end, -(spec.days - 1));
+  const within = (p: DailyPoint, s: string, e: string) => p.date >= s && p.date <= e;
+  const current = points.filter((p) => within(p, start, end));
+
+  let previous: DailyPoint[] = [];
+  if (spec.compare === "previous") {
+    const len = daysBetween(start, end);
+    const prevEnd = addDays(start, -1);
+    const prevStart = addDays(prevEnd, -(len - 1));
+    previous = points.filter((p) => within(p, prevStart, prevEnd));
+  } else if (spec.compare === "year") {
+    previous = points.filter((p) => within(p, addYears(start, -1), addYears(end, -1)));
+  }
+  return { current, previous, start, end };
 }
 
 export function dailyFromBreakdown(
