@@ -18,6 +18,7 @@ import { channels, getClient, getClientInsights, getConnectorCatalog, getDailyPe
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
 import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
 import { SourceTabs } from "@/components/dashboard/source-tabs";
+import { SampleDataButton } from "@/components/dashboard/sample-data-button";
 import { availableSources } from "@/lib/metrics/store";
 import { buildSparkSeries, calculateTotalsFromPerformance } from "@/lib/dashboard";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
@@ -156,12 +157,13 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             {!workspaceId ? (
               <p className="text-sm text-muted-foreground">Sign in to view analytics.</p>
             ) : dashboardSources.length === 0 ? (
-              <div className="rounded-xl border border-dashed bg-card p-12 text-center">
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card p-12 text-center">
                 <h2 className="font-display text-lg font-semibold">No analytics data yet</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="max-w-md text-sm text-muted-foreground">
                   Connect this client to GA4, Search Console, Google Ads, or another source on the Connectors
-                  page, then run a sync.
+                  page, then run a sync — or load sample data to explore the dashboard.
                 </p>
+                <SampleDataButton variant="default" />
               </div>
             ) : (
               <SourceTabs sources={dashboardSources}>

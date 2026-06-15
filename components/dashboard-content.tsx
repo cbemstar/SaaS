@@ -43,6 +43,8 @@ type DashboardContentProps = {
   meta: DashboardMeta;
   clientPerformance: Record<string, ClientPerformanceSummary>;
   currency: string;
+  /** When false, hides the legacy metric KPIs/charts (now shown by the multi-source dashboard). */
+  showLegacyMetrics?: boolean;
 };
 
 export function DashboardContent({
@@ -54,6 +56,7 @@ export function DashboardContent({
   meta,
   clientPerformance,
   currency,
+  showLegacyMetrics = true,
 }: DashboardContentProps) {
   const [selectedChannels, setSelectedChannels] = useState<ChannelKey[]>(connectedChannelKeys);
 
@@ -153,7 +156,7 @@ export function DashboardContent({
     <>
       <DashboardDataBanner meta={meta} currency={currency} />
 
-      {meta.hasLiveData ? (
+      {showLegacyMetrics && (meta.hasLiveData ? (
         <>
           {connectedChannelKeys.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
@@ -358,7 +361,7 @@ export function DashboardContent({
             </Button>
           </div>
         </Card>
-      )}
+      ))}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

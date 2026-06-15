@@ -155,13 +155,72 @@ const GOOGLE_ADS: SourceDef = {
   defaultTrend: "cost",
 };
 
-// Additional sources are registered as their connectors are implemented.
+// --- Paid social (Meta / LinkedIn / TikTok) ----------------------------------
+
+const ctr = (t: Record<string, number>) => (t.impressions > 0 ? t.clicks / t.impressions : 0);
+const cpc = (t: Record<string, number>) => (t.clicks > 0 ? t.spend / t.clicks : 0);
+const cpa = (t: Record<string, number>) => (t.conversions > 0 ? t.spend / t.conversions : 0);
+const cpm = (t: Record<string, number>) => (t.impressions > 0 ? (t.spend / t.impressions) * 1000 : 0);
+
+function paidSocial(
+  key: MetricSource,
+  label: string,
+  short: string,
+  extras: MetricDef[] = [],
+  extraDefaultCards: Array<{ metric: string; size: CardSize }> = [],
+): SourceDef {
+  return {
+    key,
+    label,
+    short,
+    metrics: [
+      { key: "spend", label: "Spend", short: "Spend", format: "currency", higherIsBetter: false, additive: true },
+      { key: "impressions", label: "Impressions", short: "Impr.", format: "number", higherIsBetter: true, additive: true },
+      { key: "clicks", label: "Clicks", short: "Clicks", format: "number", higherIsBetter: true, additive: true },
+      { key: "conversions", label: "Conversions", short: "Conv.", format: "number", higherIsBetter: true, additive: true },
+      ...extras,
+      { key: "ctr", label: "CTR", short: "CTR", format: "percent", higherIsBetter: true, additive: false, derive: ctr },
+      { key: "cpc", label: "Avg. CPC", short: "CPC", format: "currency", higherIsBetter: false, additive: false, derive: cpc },
+      { key: "cpm", label: "CPM", short: "CPM", format: "currency", higherIsBetter: false, additive: false, derive: cpm },
+      { key: "cpa", label: "Cost / conv.", short: "CPA", format: "currency", higherIsBetter: false, additive: false, derive: cpa },
+    ],
+    dimensions: [
+      { type: "campaign", label: "Campaign", filterable: true },
+      { type: "device", label: "Device", filterable: true },
+    ],
+    breakdownMetrics: ["spend", "impressions", "clicks", "conversions"],
+    defaultCards: [
+      { metric: "spend", size: "sm" },
+      { metric: "impressions", size: "sm" },
+      { metric: "clicks", size: "sm" },
+      { metric: "ctr", size: "sm" },
+      ...extraDefaultCards,
+      { metric: "conversions", size: "sm" },
+      { metric: "cpc", size: "sm" },
+      { metric: "cpa", size: "sm" },
+    ],
+    defaultTrend: "spend",
+  };
+}
+
+const META = paidSocial("meta", "Meta Ads", "Meta", [
+  { key: "reach", label: "Reach", short: "Reach", format: "number", higherIsBetter: true, additive: true },
+]);
+const LINKEDIN = paidSocial("linkedin", "LinkedIn Ads", "LinkedIn");
+const TIKTOK = paidSocial(
+  "tiktok",
+  "TikTok Ads",
+  "TikTok",
+  [{ key: "video_views", label: "Video views", short: "Views", format: "number", higherIsBetter: true, additive: true }],
+  [{ metric: "video_views", size: "sm" }],
+);
+
 export const SOURCES: Record<MetricSource, SourceDef | undefined> = {
   ga4: GA4,
-  meta: undefined,
+  meta: META,
   google_ads: GOOGLE_ADS,
-  linkedin: undefined,
-  tiktok: undefined,
+  linkedin: LINKEDIN,
+  tiktok: TIKTOK,
   search_console: SEARCH_CONSOLE,
 };
 
