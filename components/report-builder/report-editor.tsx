@@ -1,6 +1,7 @@
 "use client";
 
 import "@measured/puck/puck.css";
+import "@/components/report-builder/report-builder.css";
 import { Puck, type Data } from "@measured/puck";
 import { useRouter } from "next/navigation";
 import { reportConfig } from "@/components/report-builder/report-blocks";

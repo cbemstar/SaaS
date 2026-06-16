@@ -8,8 +8,6 @@ import { getClients } from "@/lib/data";
 import { availableSources } from "@/lib/metrics/store";
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
 
-const EMPTY_LAYOUT: Data = { content: [], root: {} };
-
 export default async function ReportBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const workspaceId = await getActiveWorkspaceId();
@@ -35,7 +33,10 @@ export default async function ReportBuilderPage({ params }: { params: Promise<{ 
     ? await getReportData(workspaceId, previewClient.id, previewClient.name, currency)
     : null;
 
-  const initialData = (template.layout as Data | null) ?? EMPTY_LAYOUT;
+  // New templates start on-brand using the workspace accent colour.
+  const initialData =
+    (template.layout as Data | null) ??
+    ({ content: [], root: { props: { brandColor: workspace?.accent_color ?? "" } } } as Data);
 
   return (
     <AppShell title={`Report builder · ${template.name}`} subtitle={previewClient ? `Previewing ${previewClient.name}` : undefined}>

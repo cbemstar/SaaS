@@ -1,5 +1,6 @@
 "use client";
 
+import "@/components/report-builder/report-builder.css";
 import { Render, type Data } from "@measured/puck";
 import { reportConfig } from "@/components/report-builder/report-blocks";
 import { ReportDataProvider } from "@/components/report-builder/report-context";
