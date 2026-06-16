@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { GridEditorClient } from "@/components/report-builder/grid-editor-client";
-import { isV2, type ReportLayoutV2 } from "@/components/report-builder/registry";
+import { isV2, type ReportLayoutV2 } from "@/lib/report-builder/layout";
+import { anthropicApiKey } from "@/lib/env";
 import { getTemplate } from "@/lib/templates";
 import { getReportData } from "@/lib/report-builder/report-data";
 import { getClients } from "@/lib/data";
@@ -48,6 +49,7 @@ export default async function ReportBuilderPage({ params }: { params: Promise<{ 
         initial={initial}
         data={reportData}
         ctx={{ clientId: previewClient?.id ?? "", days: 30 }}
+        aiEnabled={Boolean(anthropicApiKey)}
       />
     </AppShell>
   );

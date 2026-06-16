@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ReportRender } from "@/components/report-builder/report-render";
-import { isV2 } from "@/components/report-builder/registry";
+import { isV2 } from "@/lib/report-builder/layout";
 import { PrintButton } from "@/components/report-builder/print-button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getReportData } from "@/lib/report-builder/report-data";

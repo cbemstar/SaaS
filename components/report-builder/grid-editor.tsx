@@ -80,11 +80,13 @@ export function GridEditor({
   initial,
   data,
   ctx,
+  aiEnabled = false,
 }: {
   templateId: string;
   initial: ReportLayoutV2;
   data: ReportData | null;
   ctx: EditorCtx;
+  aiEnabled?: boolean;
 }) {
   const [layout, setLayout] = useState<ReportLayoutV2>(initial);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -143,7 +145,9 @@ export function GridEditor({
     if (!preset) return;
     setLayout((prev) => ({
       ...prev,
-      items: preset.items.map((it) => ({ ...it, id: newId(), config: { ...it.config } })),
+      items: preset.items
+        .filter((it) => aiEnabled || !it.type.startsWith("ai_"))
+        .map((it) => ({ ...it, id: newId(), config: { ...it.config } })),
     }));
     setSelectedId(null);
   }
@@ -182,7 +186,7 @@ export function GridEditor({
       <div className="flex min-h-0 flex-1">
         {/* Palette */}
         <aside className="w-44 shrink-0 overflow-y-auto border-r p-3">
-          {PALETTE_GROUPS.map((g) => (
+          {PALETTE_GROUPS.filter((g) => aiEnabled || g.group !== "AI").map((g) => (
             <div key={g.group} className="mb-4">
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g.group}</p>
               <div className="space-y-1">

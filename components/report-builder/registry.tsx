@@ -9,7 +9,6 @@ import { RichTextEditor } from "@/components/report-builder/rich-text-field";
 import { ImageUploadField } from "@/components/report-builder/image-upload-field";
 import { Labeled, SelectControl, StylePanel, TextControl } from "@/components/report-builder/controls";
 import type { ReportData } from "@/lib/report-builder/types";
-import type { ReportTheme } from "@/components/report-builder/report-theme";
 import {
   SOURCES,
   deltaPercent,
@@ -21,30 +20,10 @@ import {
 } from "@/lib/metrics/catalog";
 import { formatCompact } from "@/lib/utils";
 
-export type ComponentType =
-  | "heading"
-  | "text"
-  | "image"
-  | "divider"
-  | "spacer"
-  | "client_header"
-  | "kpi"
-  | "chart"
-  | "breakdown"
-  | "metric_grid"
-  | "ai_summary"
-  | "ai_recommendations"
-  | "ai_highlights"
-  | "ai_whatchanged";
+import type { Cfg, ComponentType, EditorCtx, ReportItem, ReportLayoutV2 } from "@/lib/report-builder/layout";
 
-export type Cfg = Record<string, unknown>;
-export type ReportItem = { id: string; type: ComponentType; x: number; y: number; w: number; h: number; config: Cfg };
-export type ReportLayoutV2 = { version: 2; theme: ReportTheme; items: ReportItem[] };
-export type EditorCtx = { clientId: string; days: number };
-
-export function isV2(layout: unknown): layout is ReportLayoutV2 {
-  return Boolean(layout && typeof layout === "object" && Array.isArray((layout as { items?: unknown }).items));
-}
+export type { Cfg, ComponentType, EditorCtx, ReportItem, ReportLayoutV2 };
+export { isV2 } from "@/lib/report-builder/layout";
 
 const str = (c: Cfg, k: string, d = "") => (typeof c[k] === "string" ? (c[k] as string) : d);
 const arr = (c: Cfg, k: string) => (Array.isArray(c[k]) ? (c[k] as string[]) : []);

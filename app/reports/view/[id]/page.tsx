@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ReportRender } from "@/components/report-builder/report-render";
-import { isV2 } from "@/components/report-builder/registry";
+import { isV2 } from "@/lib/report-builder/layout";
 import { ReportViewControls } from "@/components/report-builder/report-view-controls";
 import { PrintButton } from "@/components/report-builder/print-button";
 import { ShareReportDialog } from "@/components/report-builder/share-report-dialog";

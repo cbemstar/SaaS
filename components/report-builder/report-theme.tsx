@@ -3,14 +3,9 @@
 import type { CSSProperties } from "react";
 import type { Field } from "@measured/puck";
 import { FONT_OPTIONS, colorField } from "@/components/report-builder/fields";
+import type { ReportTheme } from "@/lib/report-builder/layout";
 
-export type ReportTheme = {
-  brandColor?: string;
-  fontFamily?: string;
-  pageBackground?: string;
-  textColor?: string;
-  spacing?: "compact" | "comfortable" | "spacious";
-};
+export type { ReportTheme };
 
 export const themeFields: Record<string, Field> = {
   brandColor: colorField("Brand colour"),
