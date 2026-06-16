@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import type { Data } from "@measured/puck";
-import { ReportCanvas } from "@/components/report-builder/report-canvas";
+import { ReportRender } from "@/components/report-builder/report-render";
+import { isV2 } from "@/components/report-builder/registry";
 import { ReportViewControls } from "@/components/report-builder/report-view-controls";
 import { PrintButton } from "@/components/report-builder/print-button";
 import { ShareReportDialog } from "@/components/report-builder/share-report-dialog";
@@ -11,8 +11,6 @@ import { getReportData } from "@/lib/report-builder/report-data";
 import { getClients } from "@/lib/data";
 import { availableSources } from "@/lib/metrics/store";
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
-
-const EMPTY_LAYOUT: Data = { content: [], root: {} };
 
 const PRINT_CSS = `
   @media print {
@@ -56,7 +54,6 @@ export default async function ReportViewPage({ params, searchParams }: ViewPageP
   client = client ?? clients[0];
 
   const reportData = await getReportData(workspaceId, client.id, client.name, currency, days);
-  const layout = (template.layout as Data | null) ?? EMPTY_LAYOUT;
   const accent = workspace?.accent_color ?? "#1f6f5c";
   const agencyName = workspace?.name ?? "Your agency";
 
@@ -90,12 +87,12 @@ export default async function ReportViewPage({ params, searchParams }: ViewPageP
           )}
         </header>
 
-        {layout.content.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            This template has no blocks yet. Open the builder to add charts, metrics, and text.
-          </p>
+        {isV2(template.layout) && template.layout.items.length > 0 ? (
+          <ReportRender layout={template.layout} data={reportData} />
         ) : (
-          <ReportCanvas data={layout} reportData={reportData} />
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            This template has no content yet. Open the builder to add components.
+          </p>
         )}
       </div>
     </main>

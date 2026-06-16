@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import type { Field } from "@measured/puck";
 
-function ImageUploadField({ value, onChange }: { value?: string; onChange: (url: string) => void }) {
+export function ImageUploadField({ value, onChange }: { value?: string; onChange: (url: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

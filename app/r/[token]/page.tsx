@@ -1,12 +1,10 @@
 import { notFound } from "next/navigation";
-import type { Data } from "@measured/puck";
-import { ReportCanvas } from "@/components/report-builder/report-canvas";
+import { ReportRender } from "@/components/report-builder/report-render";
+import { isV2 } from "@/components/report-builder/registry";
 import { PrintButton } from "@/components/report-builder/print-button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getReportData } from "@/lib/report-builder/report-data";
 import type { ReportShareRow, WorkspaceRow } from "@/lib/supabase/types";
-
-const EMPTY_LAYOUT: Data = { content: [], root: {} };
 
 const PRINT_CSS = `
   @media print {
@@ -35,7 +33,6 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
   const ws = workspace as WorkspaceRow | null;
   const currency = ws?.currency ?? "NZD";
   const reportData = await getReportData(s.workspace_id, s.client_id, client.name, currency, s.days, admin);
-  const layout = (template.layout as Data | null) ?? EMPTY_LAYOUT;
   const accent = ws?.accent_color ?? "#1f6f5c";
   const agencyName = ws?.name ?? "Agency";
 
@@ -62,10 +59,10 @@ export default async function PublicReportPage({ params }: { params: Promise<{ t
           )}
         </header>
 
-        {layout.content.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">This report has no content yet.</p>
+        {isV2(template.layout) && template.layout.items.length > 0 ? (
+          <ReportRender layout={template.layout} data={reportData} />
         ) : (
-          <ReportCanvas data={layout} reportData={reportData} />
+          <p className="py-12 text-center text-sm text-muted-foreground">This report has no content yet.</p>
         )}
       </div>
     </main>

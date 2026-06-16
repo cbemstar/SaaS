@@ -42,4 +42,13 @@
   .rb-cols {
     flex-direction: column !important;
   }
+  /* Grid reports collapse to a single stacked column on narrow screens. */
+  .rb-grid {
+    display: block !important;
+  }
+  .rb-grid > * {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    margin-bottom: 1rem;
+  }
 }

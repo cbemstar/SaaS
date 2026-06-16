@@ -153,7 +153,7 @@ function Toolbar({ editor }: { editor: Editor }) {
   );
 }
 
-function RichTextEditor({ value, onChange }: { value?: string; onChange: (html: string) => void }) {
+export function RichTextEditor({ value, onChange }: { value?: string; onChange: (html: string) => void }) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
