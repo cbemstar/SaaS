@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { GridEditor } from "@/components/report-builder/grid-editor";
+import { GridEditorClient } from "@/components/report-builder/grid-editor-client";
 import { isV2, type ReportLayoutV2 } from "@/components/report-builder/registry";
 import { getTemplate } from "@/lib/templates";
 import { getReportData } from "@/lib/report-builder/report-data";
@@ -43,7 +43,7 @@ export default async function ReportBuilderPage({ params }: { params: Promise<{ 
       title={`Report builder · ${template.name}`}
       subtitle={previewClient ? `Previewing ${previewClient.name}` : undefined}
     >
-      <GridEditor
+      <GridEditorClient
         templateId={id}
         initial={initial}
         data={reportData}
