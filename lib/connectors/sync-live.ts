@@ -6,7 +6,9 @@ import { additiveKeys, type MetricSource, type SourceMetricsResult } from "@/lib
 import { writeBreakdowns, writeDailyMetrics } from "@/lib/metrics/store";
 import { fetchGoogleAdsDailyPerformance, fetchGoogleAdsMetrics } from "@/lib/connectors/google-ads";
 import { getGoogleAccessToken } from "@/lib/connectors/google-auth";
-import { fetchMetaDailyPerformance, type PerformanceSeedRow } from "@/lib/connectors/meta";
+import { fetchMetaDailyPerformance, fetchMetaMetrics, type PerformanceSeedRow } from "@/lib/connectors/meta";
+import { fetchLinkedInMetrics } from "@/lib/connectors/linkedin";
+import { fetchTikTokMetrics } from "@/lib/connectors/tiktok";
 import { fetchSearchConsoleDailyPerformance, fetchSearchConsoleMetrics } from "@/lib/connectors/search-console";
 
 type AdminClient = SupabaseClient<Database>;
@@ -177,6 +179,42 @@ export async function syncSearchConsoleMetricsForClient(admin: AdminClient, work
   );
 }
 
+/** Reads a stored OAuth access token for non-Google channels (Meta/LinkedIn/TikTok). */
+async function getConnectorAccessToken(
+  admin: AdminClient,
+  workspaceId: string,
+  channel: ChannelKey,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("connector_tokens")
+    .select("access_token")
+    .eq("workspace_id", workspaceId)
+    .eq("channel", channel)
+    .maybeSingle();
+  return data?.access_token ?? null;
+}
+
+export async function syncMetaMetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {
+  const accountId = await getClientLink(admin, workspaceId, clientId, "meta");
+  const accessToken = await getConnectorAccessToken(admin, workspaceId, "meta");
+  if (!accountId || !accessToken) return 0;
+  return writeSourceResult(admin, workspaceId, clientId, "meta", await fetchMetaMetrics(accessToken, accountId));
+}
+
+export async function syncLinkedInMetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {
+  const accountId = await getClientLink(admin, workspaceId, clientId, "linkedin");
+  const accessToken = await getConnectorAccessToken(admin, workspaceId, "linkedin");
+  if (!accountId || !accessToken) return 0;
+  return writeSourceResult(admin, workspaceId, clientId, "linkedin", await fetchLinkedInMetrics(accessToken, accountId));
+}
+
+export async function syncTikTokMetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {
+  const advertiserId = await getClientLink(admin, workspaceId, clientId, "tiktok");
+  const accessToken = await getConnectorAccessToken(admin, workspaceId, "tiktok");
+  if (!advertiserId || !accessToken) return 0;
+  return writeSourceResult(admin, workspaceId, clientId, "tiktok", await fetchTikTokMetrics(accessToken, advertiserId));
+}
+
 export async function syncGoogleAdsMetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {
   const customerId = await getClientLink(admin, workspaceId, clientId, "google_ads");
   const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
@@ -213,6 +251,16 @@ export async function syncRichMetricsForClient(
       syncGoogleAdsMetricsForClient(admin, workspaceId, clientId).catch((e) =>
         console.error("Google Ads sync failed", e),
       ),
+    );
+  if (channels.includes("meta"))
+    jobs.push(syncMetaMetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("Meta sync failed", e)));
+  if (channels.includes("linkedin"))
+    jobs.push(
+      syncLinkedInMetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("LinkedIn sync failed", e)),
+    );
+  if (channels.includes("tiktok"))
+    jobs.push(
+      syncTikTokMetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("TikTok sync failed", e)),
     );
   await Promise.all(jobs);
 }

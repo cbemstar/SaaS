@@ -65,3 +65,109 @@ export async function fetchMetaDailyPerformance(
 }
 
 export type { PerformanceSeedRow };
+
+// --- Rich Meta metrics for the generic store ---------------------------------
+
+import type { SourceMetricsResult } from "@/lib/metrics/catalog";
+
+const CONVERSION_ACTIONS = new Set([
+  "purchase",
+  "lead",
+  "complete_registration",
+  "offsite_conversion.fb_pixel_purchase",
+  "offsite_conversion.fb_pixel_lead",
+]);
+
+type MetaRichRow = MetaInsightRow & {
+  reach?: string;
+  campaign_name?: string;
+  impression_device?: string;
+};
+
+function conversionsFromActions(actions?: Array<{ action_type: string; value: string }>) {
+  return (actions ?? [])
+    .filter((a) => CONVERSION_ACTIONS.has(a.action_type))
+    .reduce((sum, a) => sum + Number(a.value ?? 0), 0);
+}
+
+function metaCore(row: MetaRichRow) {
+  return {
+    spend: Number(row.spend ?? 0),
+    impressions: Number(row.impressions ?? 0),
+    clicks: Number(row.clicks ?? 0),
+    conversions: conversionsFromActions(row.actions),
+  };
+}
+
+async function metaInsights(
+  accountId: string,
+  accessToken: string,
+  extra: Record<string, string>,
+): Promise<MetaRichRow[]> {
+  const params = new URLSearchParams({
+    time_increment: "1",
+    date_preset: "last_30d",
+    access_token: accessToken,
+    limit: "500",
+    ...extra,
+  });
+  const rows: MetaRichRow[] = [];
+  let url: string | null = `https://graph.facebook.com/v20.0/${accountId}/insights?${params.toString()}`;
+  for (let page = 0; url && page < 10; page++) {
+    const res: Response = await fetch(url);
+    if (!res.ok) {
+      console.error("Meta insights failed", res.status, await res.text());
+      break;
+    }
+    const payload = (await res.json()) as { data?: MetaRichRow[]; paging?: { next?: string } };
+    rows.push(...(payload.data ?? []));
+    url = payload.paging?.next ?? null;
+  }
+  return rows;
+}
+
+export async function fetchMetaMetrics(accessToken: string, adAccountId: string): Promise<SourceMetricsResult | null> {
+  const accountId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+
+  const dailyRows = await metaInsights(accountId, accessToken, {
+    fields: "spend,impressions,clicks,reach,actions",
+    level: "account",
+  });
+  const daily = dailyRows
+    .filter((row) => row.date_start)
+    .map((row) => ({ date: row.date_start, metrics: { ...metaCore(row), reach: Number(row.reach ?? 0) } }));
+
+  const breakdowns: SourceMetricsResult["breakdowns"] = [];
+
+  const campaignRows = await metaInsights(accountId, accessToken, {
+    fields: "spend,impressions,clicks,actions,campaign_name",
+    level: "campaign",
+  });
+  for (const row of campaignRows) {
+    if (!row.date_start) continue;
+    breakdowns.push({
+      date: row.date_start,
+      dimension_type: "campaign",
+      dimension_value: row.campaign_name ?? "(unknown)",
+      metrics: metaCore(row),
+    });
+  }
+
+  const deviceRows = await metaInsights(accountId, accessToken, {
+    fields: "spend,impressions,clicks,actions",
+    level: "account",
+    breakdowns: "impression_device",
+  });
+  for (const row of deviceRows) {
+    if (!row.date_start) continue;
+    breakdowns.push({
+      date: row.date_start,
+      dimension_type: "device",
+      dimension_value: row.impression_device ?? "unknown",
+      metrics: metaCore(row),
+    });
+  }
+
+  if (!daily.length && !breakdowns.length) return null;
+  return { daily, breakdowns };
+}
