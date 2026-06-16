@@ -1,8 +1,11 @@
+import { randomUUID } from "crypto";
+import { Resend } from "resend";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { advanceNextRunAt, computeNextRunAt } from "@/lib/schedule-timing";
 import { assertReportDeliveryAllowed } from "@/lib/report-approval";
 import { deliverReportEmail, recordSentReport } from "@/lib/report-delivery";
-import type { Database, ScheduledReportRow } from "@/lib/supabase/types";
+import { appUrl, resendApiKey } from "@/lib/env";
+import type { Database, ScheduledReportRow, WorkspaceRow } from "@/lib/supabase/types";
 
 export type ScheduledReportCadence = ScheduledReportRow["cadence"];
 
@@ -188,19 +191,68 @@ export async function deleteScheduledReport(workspaceId: string, scheduleId: str
   }
 }
 
+type AdminClient = ReturnType<typeof createSupabaseAdminClient>;
+
+/** Delivers a new builder report by emailing the client a live share link. */
+async function deliverBuilderShare(
+  admin: NonNullable<AdminClient>,
+  row: ScheduledReportRow,
+  clientName: string,
+  workspace: WorkspaceRow | null,
+) {
+  if (!resendApiKey) {
+    throw new Error("Email is not configured (RESEND_API_KEY)");
+  }
+  const token = randomUUID();
+  const { error } = await admin.from("report_shares").insert({
+    token,
+    workspace_id: row.workspace_id,
+    template_id: row.template_id,
+    client_id: row.client_id,
+    days: 30,
+  });
+  if (error) {
+    throw new Error("Could not create report share");
+  }
+
+  const url = `${appUrl}/r/${token}`;
+  const agency = workspace?.name ?? "Your agency";
+  const resend = new Resend(resendApiKey);
+  await resend.emails.send({
+    from: "Kōrero <onboarding@resend.dev>",
+    to: row.recipient_email,
+    subject: `${clientName} — performance report from ${agency}`,
+    html: `<p>${agency} has shared your latest performance report for <strong>${clientName}</strong>.</p><p><a href="${url}">View the report</a></p>`,
+  });
+}
+
 async function runScheduledReport(row: ScheduledReportRow) {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     throw new Error("Database is not configured");
   }
 
-  const [{ data: client }, { data: workspace }] = await Promise.all([
+  const [{ data: client }, { data: workspace }, { data: template }] = await Promise.all([
     admin.from("clients").select("name").eq("workspace_id", row.workspace_id).eq("id", row.client_id).maybeSingle(),
     admin.from("workspaces").select("*").eq("id", row.workspace_id).maybeSingle(),
+    admin.from("report_templates").select("id, layout").eq("workspace_id", row.workspace_id).eq("id", row.template_id).maybeSingle(),
   ]);
 
   if (!client) {
     throw new Error("Client no longer exists");
+  }
+
+  // New drag-and-drop builder templates carry a Puck layout → send a live link.
+  if (template?.layout) {
+    await deliverBuilderShare(admin, row, client.name, workspace);
+    await recordSentReport({
+      workspaceId: row.workspace_id,
+      clientId: row.client_id,
+      templateId: row.template_id,
+      name: row.name,
+      blocks: [],
+    });
+    return;
   }
 
   const blocks = Array.isArray(row.blocks) ? (row.blocks as string[]) : [];
