@@ -1,5 +1,7 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { aggregateTotals, resolveWindows, type MetricSource } from "@/lib/metrics/catalog";
 import { availableSources, readBreakdownRaw, readDaily } from "@/lib/metrics/store";
+import type { Database } from "@/lib/supabase/types";
 import type { ReportData } from "@/lib/report-builder/types";
 
 /**
@@ -12,14 +14,15 @@ export async function getReportData(
   clientName: string,
   currency: string,
   days = 30,
+  db?: SupabaseClient<Database>,
 ): Promise<ReportData> {
-  const sources = await availableSources(workspaceId, { clientId });
+  const sources = await availableSources(workspaceId, { clientId }, db);
 
   const entries = await Promise.all(
     sources.map(async (source) => {
       const [daily, breakdowns] = await Promise.all([
-        readDaily(workspaceId, { clientId }, source),
-        readBreakdownRaw(workspaceId, { clientId }, source),
+        readDaily(workspaceId, { clientId }, source, db),
+        readBreakdownRaw(workspaceId, { clientId }, source, db),
       ]);
       const { current, previous } = resolveWindows(daily, { days, compare: "previous" });
       return [

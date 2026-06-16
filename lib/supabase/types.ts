@@ -333,6 +333,16 @@ export type MetricBreakdownRow = {
   updated_at?: string;
 };
 
+export type ReportShareRow = {
+  token: string;
+  workspace_id: string;
+  template_id: string;
+  client_id: string;
+  days: number;
+  created_by?: string | null;
+  created_at?: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -483,6 +493,12 @@ export type Database = {
         Row: MetricBreakdownRow;
         Insert: MetricBreakdownRow;
         Update: Partial<MetricBreakdownRow>;
+        Relationships: [];
+      };
+      report_shares: {
+        Row: ReportShareRow;
+        Insert: ReportShareRow;
+        Update: Partial<ReportShareRow>;
         Relationships: [];
       };
     };

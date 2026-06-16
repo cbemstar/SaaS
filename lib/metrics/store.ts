@@ -109,9 +109,18 @@ export async function writeBreakdowns(
 
 // --- Reads (user client, RLS) ------------------------------------------------
 
-/** Pivots long rows into daily points (one record per date) with derived rates. */
-export async function readDaily(workspaceId: string, scope: Scope, source: MetricSource): Promise<DailyPoint[]> {
-  const supabase = await createSupabaseServerClient();
+/**
+ * Pivots long rows into daily points (one record per date) with derived rates.
+ * Pass `db` (e.g. the admin client) to read outside a user session — used by
+ * the public share page.
+ */
+export async function readDaily(
+  workspaceId: string,
+  scope: Scope,
+  source: MetricSource,
+  db?: AdminClient,
+): Promise<DailyPoint[]> {
+  const supabase = db ?? (await createSupabaseServerClient());
   if (!supabase) return [];
 
   const clientIds = clientIdsForScope(scope);
@@ -146,8 +155,9 @@ export async function readBreakdownRaw(
   workspaceId: string,
   scope: Scope,
   source: MetricSource,
+  db?: AdminClient,
 ): Promise<BreakdownRaw[]> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = db ?? (await createSupabaseServerClient());
   if (!supabase) return [];
 
   const clientIds = clientIdsForScope(scope);
@@ -201,8 +211,8 @@ export async function hasSourceData(workspaceId: string, scope: Scope, source: M
 }
 
 /** Sources that have any stored data for the scope (drives the source switcher). */
-export async function availableSources(workspaceId: string, scope: Scope): Promise<MetricSource[]> {
-  const supabase = await createSupabaseServerClient();
+export async function availableSources(workspaceId: string, scope: Scope, db?: AdminClient): Promise<MetricSource[]> {
+  const supabase = db ?? (await createSupabaseServerClient());
   if (!supabase) return [];
 
   let query = supabase.from("metric_daily").select("source").eq("workspace_id", workspaceId);

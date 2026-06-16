@@ -5,6 +5,7 @@ import type { Data } from "@measured/puck";
 import { ReportCanvas } from "@/components/report-builder/report-canvas";
 import { ReportViewControls } from "@/components/report-builder/report-view-controls";
 import { PrintButton } from "@/components/report-builder/print-button";
+import { ShareReportDialog } from "@/components/report-builder/share-report-dialog";
 import { getTemplate } from "@/lib/templates";
 import { getReportData } from "@/lib/report-builder/report-data";
 import { getClients } from "@/lib/data";
@@ -69,6 +70,7 @@ export default async function ReportViewPage({ params, searchParams }: ViewPageP
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <ReportViewControls templateId={id} clients={clients} clientId={client.id} days={days} />
+          <ShareReportDialog templateId={id} clientId={client.id} days={days} />
           <PrintButton />
         </div>
       </div>
