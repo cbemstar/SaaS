@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -58,6 +59,64 @@ function NavPending({ badge, active }: { badge?: string; active: boolean }) {
   return null;
 }
 
+/**
+ * AI-credits widget. Seeds from the server-rendered value (no flash), then keeps
+ * itself live: refetches on the `ai-credits-updated` event the report builder
+ * fires after a generation, so the count updates without a full page reload.
+ */
+function AiCreditsCard({ initial }: { initial?: AiUsage | null }) {
+  const [usage, setUsage] = useState<AiUsage | null>(initial ?? null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/ai/usage");
+        if (!res.ok) return;
+        const data = (await res.json()) as { usage: AiUsage };
+        if (active) setUsage(data.usage);
+      } catch {
+        /* keep last known value */
+      }
+    };
+    void load();
+    const onUpdate = () => void load();
+    window.addEventListener("ai-credits-updated", onUpdate);
+    return () => {
+      active = false;
+      window.removeEventListener("ai-credits-updated", onUpdate);
+    };
+  }, []);
+
+  const pct = usage && usage.limit > 0 ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0;
+
+  return (
+    <Link
+      href="/settings?tab=ai"
+      className="block rounded-lg border border-border/80 bg-card p-3.5 transition-colors hover:border-primary/40"
+    >
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Sparkles className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold">AI credits</p>
+          {usage?.byok ? (
+            <p className="font-mono text-2xs text-muted-foreground">Your own API key</p>
+          ) : usage ? (
+            <p className="font-mono text-2xs text-muted-foreground">
+              {formatCompact(usage.used)} / {formatCompact(usage.limit)}
+            </p>
+          ) : (
+            <p className="font-mono text-2xs text-muted-foreground">—</p>
+          )}
+        </div>
+      </div>
+      {!usage?.byok && usage && <Progress value={pct} className="mt-3 h-1" />}
+    </Link>
+  );
+}
+
 export function AppSidebar({ aiUsage }: { aiUsage?: AiUsage | null }) {
   const pathname = usePathname();
   return (
@@ -108,31 +167,7 @@ export function AppSidebar({ aiUsage }: { aiUsage?: AiUsage | null }) {
         ))}
       </nav>
       <div className="space-y-2 border-t border-border/80 p-3">
-        <Link href="/settings?tab=ai" className="block rounded-lg border border-border/80 bg-card p-3.5 transition-colors hover:border-primary/40">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold">AI credits</p>
-              {aiUsage?.byok ? (
-                <p className="font-mono text-2xs text-muted-foreground">Your own API key</p>
-              ) : aiUsage ? (
-                <p className="font-mono text-2xs text-muted-foreground">
-                  {formatCompact(aiUsage.used)} / {formatCompact(aiUsage.limit)}
-                </p>
-              ) : (
-                <p className="font-mono text-2xs text-muted-foreground">—</p>
-              )}
-            </div>
-          </div>
-          {!aiUsage?.byok && aiUsage && (
-            <Progress
-              value={aiUsage.limit > 0 ? Math.min(100, Math.round((aiUsage.used / aiUsage.limit) * 100)) : 0}
-              className="mt-3 h-1"
-            />
-          )}
-        </Link>
+        <AiCreditsCard initial={aiUsage} />
         <div className="flex gap-1 px-1 text-muted-foreground">
           <Link
             href="#"

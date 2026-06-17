@@ -189,6 +189,8 @@ function AiPanel({ type, config, onChange, ctx }: { type: ComponentType; config:
       const data = (await res.json()) as { text?: string; error?: string };
       if (!res.ok || !data.text) throw new Error(data.error ?? "Generation failed");
       onChange({ ...config, html: data.text });
+      // Tell the sidebar credits widget to refresh its count.
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("ai-credits-updated"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
     } finally {

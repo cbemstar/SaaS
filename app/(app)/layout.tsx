@@ -9,10 +9,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const aiUsage = workspaceId ? await getAiUsage(workspaceId, workspace) : null;
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <WorkspaceBootstrap />
       <AppSidebar aiUsage={aiUsage} />
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">{children}</div>
     </div>
   );
 }
