@@ -6,12 +6,7 @@ import { SampleDataButton } from "@/components/dashboard/sample-data-button";
 import { availableSources } from "@/lib/metrics/store";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
 import { getClientPerformanceSummaries, getDashboardMeta } from "@/lib/dashboard";
-import {
-  getMappedClientIds,
-  purgeOrphanWorkspacePerformance,
-  purgeUnmappedClientPerformance,
-  sanitizeDisconnectedChannelMetrics,
-} from "@/lib/performance-data";
+import { getMappedClientIds } from "@/lib/performance-data";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
 import { getClients, getConnectorCatalog, getDailyPerformance, getInsights } from "@/lib/data";
@@ -21,20 +16,15 @@ export default async function DashboardPage() {
   const overviewSources = workspaceId ? await availableSources(workspaceId, "overview") : [];
   const authorizedChannelKeys = workspaceId ? await getAuthorizedConnectorChannels(workspaceId) : [];
 
+  // Reads below are already scoped by mappedClientIds + authorizedChannelKeys, so
+  // we only need the mapping here. DB hygiene (purge orphaned/unmapped rows,
+  // sanitize disconnected channels, refresh client summaries) now runs in the
+  // sync path and at mutation time instead of on every dashboard render.
   let mappedClientIds = new Set<string>();
   if (workspaceId) {
     const admin = createSupabaseAdminClient();
     if (admin) {
       mappedClientIds = await getMappedClientIds(admin, workspaceId, authorizedChannelKeys);
-      await purgeOrphanWorkspacePerformance(admin, workspaceId);
-      await sanitizeDisconnectedChannelMetrics(admin, workspaceId, authorizedChannelKeys);
-      await purgeUnmappedClientPerformance(admin, workspaceId, authorizedChannelKeys);
-      if (mappedClientIds.size > 0) {
-        for (const clientId of mappedClientIds) {
-          const { refreshClientMetricsFromPerformance } = await import("@/lib/clients");
-          await refreshClientMetricsFromPerformance(workspaceId, clientId);
-        }
-      }
     }
   }
 

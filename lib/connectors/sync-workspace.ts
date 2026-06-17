@@ -7,6 +7,8 @@ import {
   clearClientChannelMetrics,
   getConnectedChannelKeys,
   mergePerformanceSeedRow,
+  purgeOrphanWorkspacePerformance,
+  purgeUnmappedClientPerformance,
   sanitizeDisconnectedChannelMetrics,
 } from "@/lib/performance-data";
 import { pullLivePerformanceForClient, syncRichMetricsForClient } from "@/lib/connectors/sync-live";
@@ -153,6 +155,13 @@ async function runWorkspaceSync(
   const sanitizedRows = options.skipSanitize
     ? 0
     : await sanitizeDisconnectedChannelMetrics(admin, workspaceId, connectedChannels);
+
+  // Converge DB hygiene during sync (formerly done on every dashboard render):
+  // drop orphaned rows and rows for clients no longer mapped to a synced channel.
+  if (!options.skipSanitize) {
+    await purgeOrphanWorkspacePerformance(admin, workspaceId);
+    await purgeUnmappedClientPerformance(admin, workspaceId, connectedChannels);
+  }
 
   const syncChannels = options.channel
     ? connectedChannels.filter((value) => value === options.channel)

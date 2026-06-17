@@ -138,6 +138,14 @@ export async function deleteClientRecord(workspaceId: string, clientId: string) 
     throw new Error("Supabase not configured");
   }
 
+  // Clean the client's data at the source so deletes don't leave orphaned
+  // performance/metric rows for the dashboard to sweep up on every render.
+  await Promise.all([
+    admin.from("daily_performance").delete().eq("workspace_id", workspaceId).eq("client_id", clientId),
+    admin.from("metric_daily").delete().eq("workspace_id", workspaceId).eq("client_id", clientId),
+    admin.from("metric_breakdown").delete().eq("workspace_id", workspaceId).eq("client_id", clientId),
+  ]);
+
   const { error } = await admin.from("clients").delete().eq("workspace_id", workspaceId).eq("id", clientId);
   if (error) {
     throw error;
