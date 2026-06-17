@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Check, ImageIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +13,6 @@ import { cn } from "@/lib/utils";
 import type { WorkspaceRow } from "@/lib/supabase/types";
 
 const presetAccents = ["#1f6f5c", "#2563eb", "#db2777", "#ea580c", "#7c3aed", "#0f766e", "#111827"];
-
-type SaveState = "idle" | "saving" | "saved" | "error";
 
 type BrandingSettingsFormProps = {
   workspace: WorkspaceRow;
@@ -26,7 +25,7 @@ export function BrandingSettingsForm({ workspace }: BrandingSettingsFormProps) {
   const [contact, setContact] = useState(workspace.primary_contact ?? "");
   const [footer, setFooter] = useState(workspace.report_footer ?? "");
   const [whiteLabel, setWhiteLabel] = useState(workspace.white_label ?? true);
-  const [state, setState] = useState<SaveState>("idle");
+  const [saving, setSaving] = useState(false);
 
   const initials = workspace.name
     .split(/\s+/u)
@@ -37,7 +36,7 @@ export function BrandingSettingsForm({ workspace }: BrandingSettingsFormProps) {
 
   async function handleSave(event: React.FormEvent) {
     event.preventDefault();
-    setState("saving");
+    setSaving(true);
 
     const response = await fetch("/api/workspace", {
       method: "PATCH",
@@ -51,15 +50,16 @@ export function BrandingSettingsForm({ workspace }: BrandingSettingsFormProps) {
       }),
     });
 
+    setSaving(false);
     if (response.status === 401) {
-      setState("error");
+      toast.error("Your session expired. Sign in and try again.");
       return;
     }
     if (!response.ok) {
-      setState("error");
+      toast.error("Could not save branding");
       return;
     }
-    setState("saved");
+    toast.success("Branding saved");
     router.refresh();
   }
 
@@ -141,12 +141,10 @@ export function BrandingSettingsForm({ workspace }: BrandingSettingsFormProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button type="submit" disabled={state === "saving"} className="gap-2">
-            {state === "saving" && <Loader2 className="h-4 w-4 animate-spin" />}
-            {state === "saving" ? "Saving…" : "Save branding"}
+          <Button type="submit" disabled={saving} className="gap-2">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {saving ? "Saving…" : "Save branding"}
           </Button>
-          {state === "saved" && <span className="text-sm text-success">Saved.</span>}
-          {state === "error" && <span className="text-sm text-destructive">Could not save. Sign in and try again.</span>}
         </div>
       </form>
 

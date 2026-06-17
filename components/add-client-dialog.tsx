@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,6 @@ export function AddClientDialog() {
   const [industry, setIndustry] = useState("");
   const [selectedChannels, setSelectedChannels] = useState<ChannelKey[]>(["meta", "google_ads"]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function toggleChannel(channel: ChannelKey) {
     setSelectedChannels((current) =>
@@ -36,7 +36,6 @@ export function AddClientDialog() {
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
-    setError(null);
 
     const response = await fetch("/api/clients", {
       method: "POST",
@@ -47,13 +46,14 @@ export function AddClientDialog() {
     setLoading(false);
 
     if (!response.ok) {
-      const payload = (await response.json()) as { error?: string };
-      setError(payload.error ?? "Could not create client");
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      toast.error(payload.error ?? "Could not create client");
       return;
     }
 
     const payload = (await response.json()) as { client: { id: string } };
     setOpen(false);
+    toast.success(`${name} added`);
     router.push(`/clients/${payload.client.id}`);
     router.refresh();
   }
@@ -71,11 +71,6 @@ export function AddClientDialog() {
           <DialogDescription>Create a client account to track channels, insights, and reports.</DialogDescription>
         </DialogHeader>
         <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
-          {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          )}
           <div className="grid gap-1.5">
             <Label htmlFor="client-name">Client name</Label>
             <Input id="client-name" value={name} onChange={(e) => setName(e.target.value)} required />

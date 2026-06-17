@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { AlertTriangle, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -23,7 +24,6 @@ export function SendReportDialog({ open, onOpenChange, client, template, blocks 
   const router = useRouter();
   const [recipientEmail, setRecipientEmail] = useState(client.contact_email ?? "");
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [pendingReviews, setPendingReviews] = useState(0);
   const [checking, setChecking] = useState(false);
 
@@ -32,7 +32,6 @@ export function SendReportDialog({ open, onOpenChange, client, template, blocks 
   useEffect(() => {
     if (!open) return;
     setRecipientEmail(client.contact_email ?? "");
-    setError(null);
     setChecking(true);
     const blocksParam = encodeURIComponent(blocks.join(","));
     void fetch(`/api/reports/delivery-check?clientId=${client.id}&blocks=${blocksParam}`)
@@ -43,12 +42,11 @@ export function SendReportDialog({ open, onOpenChange, client, template, blocks 
 
   async function handleSend() {
     if (!recipientEmail.trim()) {
-      setError("Recipient email is required.");
+      toast.error("Recipient email is required");
       return;
     }
 
     setSending(true);
-    setError(null);
 
     const response = await fetch("/api/reports/send", {
       method: "POST",
@@ -63,13 +61,14 @@ export function SendReportDialog({ open, onOpenChange, client, template, blocks 
     });
 
     setSending(false);
-    const payload = (await response.json()) as { error?: string };
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
     if (!response.ok) {
-      setError(payload.error ?? "Could not send report.");
+      toast.error(payload.error ?? "Could not send report");
       return;
     }
 
+    toast.success(`Report sent to ${recipientEmail.trim()}`);
     onOpenChange(false);
     router.refresh();
   }
@@ -113,8 +112,6 @@ export function SendReportDialog({ open, onOpenChange, client, template, blocks 
               </div>
             </div>
           ) : null}
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
         <div className="flex justify-end gap-2">

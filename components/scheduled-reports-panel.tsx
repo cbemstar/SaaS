@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Calendar, Loader2, Pause, Play, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,10 +48,10 @@ const hours = Array.from({ length: 24 }, (_, hour) => ({
 
 export function ScheduledReportsPanel({ schedules, clients, templates, workspace }: ScheduledReportsPanelProps) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
@@ -63,12 +65,11 @@ export function ScheduledReportsPanel({ schedules, clients, templates, workspace
 
   async function handleCreate() {
     if (!clientId || !templateId || !recipientEmail) {
-      setMessage("Client, template, and recipient email are required.");
+      toast.error("Client, template, and recipient email are required");
       return;
     }
 
     setSubmitting(true);
-    setMessage(null);
 
     const template = templates.find((item) => item.id === templateId);
     const client = clients.find((item) => item.id === clientId);
@@ -90,14 +91,15 @@ export function ScheduledReportsPanel({ schedules, clients, templates, workspace
       }),
     });
 
-    const payload = (await response.json()) as { error?: string };
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
     setSubmitting(false);
 
     if (!response.ok) {
-      setMessage(payload.error ?? "Could not create schedule.");
+      toast.error(payload.error ?? "Could not create schedule");
       return;
     }
 
+    toast.success("Schedule created");
     setCreating(false);
     setRecipientEmail("");
     router.refresh();
@@ -105,19 +107,37 @@ export function ScheduledReportsPanel({ schedules, clients, templates, workspace
 
   async function toggleActive(schedule: ScheduledReportView) {
     setBusyId(schedule.id);
-    await fetch(`/api/scheduled-reports/${schedule.id}`, {
+    const response = await fetch(`/api/scheduled-reports/${schedule.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !schedule.active }),
     });
     setBusyId(null);
+    if (!response.ok) {
+      toast.error("Could not update schedule");
+      return;
+    }
+    toast.success(schedule.active ? "Schedule paused" : "Schedule resumed");
     router.refresh();
   }
 
-  async function handleDelete(scheduleId: string) {
-    setBusyId(scheduleId);
-    await fetch(`/api/scheduled-reports/${scheduleId}`, { method: "DELETE" });
+  async function handleDelete(schedule: ScheduledReportView) {
+    const ok = await confirm({
+      title: "Delete this schedule?",
+      description: `Automated delivery to ${schedule.recipient_email} will stop. This cannot be undone.`,
+      confirmText: "Delete schedule",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setBusyId(schedule.id);
+    const response = await fetch(`/api/scheduled-reports/${schedule.id}`, { method: "DELETE" });
     setBusyId(null);
+    if (!response.ok) {
+      toast.error("Could not delete schedule");
+      return;
+    }
+    toast.success("Schedule deleted");
     router.refresh();
   }
 
@@ -150,8 +170,6 @@ export function ScheduledReportsPanel({ schedules, clients, templates, workspace
           <Plus className="h-3.5 w-3.5" /> New schedule
         </Button>
       </div>
-
-      {message && <p className="text-sm text-muted-foreground">{message}</p>}
 
       {schedules.length === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -207,7 +225,7 @@ export function ScheduledReportsPanel({ schedules, clients, templates, workspace
                   variant="ghost"
                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
                   disabled={busyId === schedule.id}
-                  onClick={() => void handleDelete(schedule.id)}
+                  onClick={() => void handleDelete(schedule)}
                   aria-label="Delete schedule"
                 >
                   <Trash2 className="h-4 w-4" />

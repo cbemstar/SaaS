@@ -52,6 +52,7 @@
     "react-grid-layout": "^2.2.3",
     "recharts": "^2.15.0",
     "resend": "^6.12.4",
+    "sonner": "^2.0.7",
     "stripe": "^22.2.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",

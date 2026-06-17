@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Loader2, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { channels, type ChannelKey, type Client } from "@/lib/catalog";
 import type { ConnectorCatalogItem } from "@/lib/data";
 import type { ClientConnectorLinkView } from "@/lib/client-connector-links";
@@ -40,7 +42,6 @@ export function ClientConnectorLinksPanel({
 }: ClientConnectorLinksPanelProps) {
   const router = useRouter();
   const [savingChannel, setSavingChannel] = useState<ChannelKey | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   if (trackedChannels.length === 0) {
     return (
@@ -59,8 +60,6 @@ export function ClientConnectorLinksPanel({
         </p>
       </div>
 
-      {message && <p className="text-xs text-muted-foreground">{message}</p>}
-
       {trackedChannels.map((channel) => {
         const connector = connectors.find((item) => item.key === channel);
         const link = links.find((item) => item.channel === channel);
@@ -74,11 +73,11 @@ export function ClientConnectorLinksPanel({
             saving={savingChannel === channel}
             onSavingChange={(saving) => setSavingChannel(saving ? channel : null)}
             onSaved={() => {
-              setMessage(`Saved ${channels[channel].label} mapping.`);
+              toast.success(`${channels[channel].label} mapping saved`);
               router.refresh();
             }}
             onCleared={() => {
-              setMessage(`Removed ${channels[channel].label} mapping.`);
+              toast.success(`${channels[channel].label} mapping removed`);
               router.refresh();
             }}
           />
@@ -115,7 +114,6 @@ function ChannelLinkRow({
   const [selectedAccountId, setSelectedAccountId] = useState(link?.externalAccountId ?? "");
   const [manualAccountId, setManualAccountId] = useState(link?.externalAccountId ?? "");
   const [accountName, setAccountName] = useState(link?.externalAccountName ?? "");
-  const [error, setError] = useState<string | null>(null);
 
   const isConnected = connector?.status === "connected" || connector?.status === "action_required";
 
@@ -139,7 +137,7 @@ function ChannelLinkRow({
   async function handleSave() {
     const externalAccountId = manualEntry || accounts.length === 0 ? manualAccountId.trim() : selectedAccountId;
     if (!externalAccountId) {
-      setError("Select or enter an account ID.");
+      toast.error("Select or enter an account ID");
       return;
     }
 
@@ -149,7 +147,6 @@ function ChannelLinkRow({
       null;
 
     onSavingChange(true);
-    setError(null);
 
     const response = await fetch(`/api/clients/${clientId}/connector-links`, {
       method: "PUT",
@@ -163,8 +160,8 @@ function ChannelLinkRow({
 
     onSavingChange(false);
     if (!response.ok) {
-      const payload = (await response.json()) as { error?: string };
-      setError(payload.error ?? "Could not save mapping.");
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      toast.error(payload.error ?? "Could not save mapping");
       return;
     }
 
@@ -173,7 +170,6 @@ function ChannelLinkRow({
 
   async function handleClear() {
     onSavingChange(true);
-    setError(null);
 
     const response = await fetch(`/api/clients/${clientId}/connector-links?channel=${channel}`, {
       method: "DELETE",
@@ -181,7 +177,7 @@ function ChannelLinkRow({
 
     onSavingChange(false);
     if (!response.ok) {
-      setError("Could not remove mapping.");
+      toast.error("Could not remove mapping");
       return;
     }
 
@@ -220,19 +216,18 @@ function ChannelLinkRow({
           ) : accounts.length > 0 && !manualEntry ? (
             <div className="grid gap-1.5">
               <Label htmlFor={`account-${channel}`}>Ad account</Label>
-              <select
-                id={`account-${channel}`}
-                value={selectedAccountId}
-                onChange={(event) => setSelectedAccountId(event.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-              >
-                <option value="">Select account…</option>
-                {accounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name} ({account.id})
-                  </option>
-                ))}
-              </select>
+              <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                <SelectTrigger id={`account-${channel}`}>
+                  <SelectValue placeholder="Select account…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name} ({account.id})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : (
             <div className="grid gap-1.5">
@@ -255,8 +250,6 @@ function ChannelLinkRow({
               placeholder="Client Meta ad account"
             />
           </div>
-
-          {error && <p className="text-xs text-destructive">{error}</p>}
 
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => void handleSave()} disabled={saving}>

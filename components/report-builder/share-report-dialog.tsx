@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Check, Copy, Send, Share2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -18,23 +19,26 @@ export function ShareReportDialog({ templateId, clientId, days }: ShareReportDia
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
 
   async function share(withEmail: boolean) {
     setBusy(true);
-    setStatus(null);
     try {
       const res = await fetch("/api/reports/share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ templateId, clientId, days, email: withEmail && email ? email : undefined }),
       });
-      const data = (await res.json()) as { url?: string; emailed?: boolean; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { url?: string; emailed?: boolean; error?: string };
       if (!res.ok || !data.url) throw new Error(data.error ?? "Could not create link");
       setUrl(data.url);
-      if (withEmail) setStatus(data.emailed ? `Sent to ${email}` : "Link created (email not configured)");
+      if (withEmail) {
+        if (data.emailed) toast.success(`Report sent to ${email}`);
+        else toast.info("Share link created — email delivery isn't configured yet");
+      } else {
+        toast.success("Share link created");
+      }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -44,6 +48,7 @@ export function ShareReportDialog({ templateId, clientId, days }: ShareReportDia
     if (!url) return;
     await navigator.clipboard.writeText(url).catch(() => {});
     setCopied(true);
+    toast.success("Link copied to clipboard");
     setTimeout(() => setCopied(false), 1500);
   }
 
@@ -92,8 +97,6 @@ export function ShareReportDialog({ templateId, clientId, days }: ShareReportDia
               </Button>
             </div>
           </div>
-
-          {status && <p className="text-xs text-muted-foreground">{status}</p>}
         </div>
       </DialogContent>
     </Dialog>

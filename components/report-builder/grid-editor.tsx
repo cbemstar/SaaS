@@ -5,6 +5,7 @@ import "react-resizable/css/styles.css";
 import "@/components/report-builder/report-builder.css";
 import { useEffect, useRef, useState, type ComponentType as ReactComponentType, type ReactNode } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import GridLayout, { WidthProvider, type Layout } from "react-grid-layout/legacy";
 import { GripVertical, Trash2, ExternalLink, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -105,7 +106,10 @@ export function GridEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ layout }),
       })
-        .catch(() => {})
+        .then((res) => {
+          if (!res.ok) toast.error("Couldn't save changes — check your connection");
+        })
+        .catch(() => toast.error("Couldn't save changes — check your connection"))
         .finally(() => setSaving(false));
     }, 700);
     return () => clearTimeout(timer);

@@ -1,38 +1,41 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function DataPanel() {
+  const router = useRouter();
+  const confirm = useConfirm();
   const [purging, setPurging] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function handlePurge() {
-    const confirmed = window.confirm(
-      "Clear all synced metrics for this workspace? Client records stay intact. You can re-import by running Sync on the Connectors page.",
-    );
-    if (!confirmed) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Clear all synced metrics?",
+      description:
+        "This removes every synced metric for this workspace. Client records stay intact, and you can re-import by running Sync on the Connectors page.",
+      confirmText: "Clear synced data",
+      destructive: true,
+    });
+    if (!confirmed) return;
 
     setPurging(true);
-    setMessage(null);
-    setError(null);
-
+    const toastId = toast.loading("Clearing synced metrics…");
     try {
       const response = await fetch("/api/workspace/purge-performance", { method: "POST" });
-      const payload = (await response.json()) as { message?: string; error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
       if (!response.ok) {
-        setError(payload.error ?? "Could not clear synced data");
+        toast.error(payload.error ?? "Could not clear synced data", { id: toastId });
         return;
       }
-      setMessage(payload.message ?? "Synced metrics cleared.");
-      window.location.reload();
+      toast.success(payload.message ?? "Synced metrics cleared", { id: toastId });
+      router.refresh();
     } catch {
-      setError("Could not clear synced data");
+      toast.error("Could not clear synced data", { id: toastId });
     } finally {
       setPurging(false);
     }
@@ -57,9 +60,6 @@ export function DataPanel() {
             </p>
           </div>
         </div>
-
-        {message && <p className="text-sm text-success">{message}</p>}
-        {error && <p className="text-sm text-destructive">{error}</p>}
 
         <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => void handlePurge()} disabled={purging}>
           <Trash2 className="h-3.5 w-3.5" />

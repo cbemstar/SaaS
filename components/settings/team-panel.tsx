@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Copy, Loader2, Mail, Trash2, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { InviteRole, PendingInvite, TeamMember, WorkspaceRole } from "@/lib/team";
 
 type TeamPanelProps = {
@@ -35,17 +37,16 @@ const roleVariants: Record<WorkspaceRole, "default" | "soft" | "muted"> = {
 
 export function TeamPanel({ members, invites, currentUser }: TeamPanelProps) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>("member");
   const [inviting, setInviting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   async function handleInvite(event: React.FormEvent) {
     event.preventDefault();
     setInviting(true);
-    setMessage(null);
     setInviteUrl(null);
 
     const response = await fetch("/api/team/invite", {
@@ -54,7 +55,7 @@ export function TeamPanel({ members, invites, currentUser }: TeamPanelProps) {
       body: JSON.stringify({ email, role }),
     });
 
-    const payload = (await response.json()) as {
+    const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
       inviteUrl?: string;
       emailed?: boolean;
@@ -63,48 +64,64 @@ export function TeamPanel({ members, invites, currentUser }: TeamPanelProps) {
     setInviting(false);
 
     if (!response.ok) {
-      setMessage(payload.error ?? "Could not send invite.");
+      toast.error(payload.error ?? "Could not send invite");
       return;
     }
 
+    const invited = email;
     setEmail("");
     setInviteUrl(payload.inviteUrl ?? null);
-    setMessage(
-      payload.emailed
-        ? `Invitation sent to ${email}.`
-        : "Invite created. Copy the link below — email delivery is not configured.",
-    );
+    if (payload.emailed) toast.success(`Invitation sent to ${invited}`);
+    else toast.info("Invite created — copy the link below (email delivery isn't configured)");
     router.refresh();
   }
 
-  async function handleRevokeInvite(inviteId: string) {
-    setBusyId(inviteId);
-    const response = await fetch(`/api/team/invites/${inviteId}`, { method: "DELETE" });
+  async function handleRevokeInvite(invite: PendingInvite) {
+    const ok = await confirm({
+      title: "Revoke this invite?",
+      description: `${invite.email} will no longer be able to join with this link.`,
+      confirmText: "Revoke invite",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setBusyId(invite.id);
+    const response = await fetch(`/api/team/invites/${invite.id}`, { method: "DELETE" });
     setBusyId(null);
     if (response.ok) {
+      toast.success("Invite revoked");
       router.refresh();
     } else {
-      const payload = (await response.json()) as { error?: string };
-      setMessage(payload.error ?? "Could not revoke invite.");
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      toast.error(payload.error ?? "Could not revoke invite");
     }
   }
 
-  async function handleRemoveMember(userId: string) {
-    setBusyId(userId);
-    const response = await fetch(`/api/team/members/${userId}`, { method: "DELETE" });
+  async function handleRemoveMember(member: TeamMember) {
+    const ok = await confirm({
+      title: "Remove team member?",
+      description: `${member.email ?? "This member"} will lose access to this workspace.`,
+      confirmText: "Remove member",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setBusyId(member.userId);
+    const response = await fetch(`/api/team/members/${member.userId}`, { method: "DELETE" });
     setBusyId(null);
     if (response.ok) {
+      toast.success("Team member removed");
       router.refresh();
     } else {
-      const payload = (await response.json()) as { error?: string };
-      setMessage(payload.error ?? "Could not remove team member.");
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      toast.error(payload.error ?? "Could not remove team member");
     }
   }
 
   async function copyInviteUrl() {
     if (!inviteUrl) return;
     await navigator.clipboard.writeText(inviteUrl);
-    setMessage("Invite link copied.");
+    toast.success("Invite link copied");
   }
 
   return (
@@ -150,8 +167,6 @@ export function TeamPanel({ members, invites, currentUser }: TeamPanelProps) {
         </form>
       )}
 
-      {message && <p className="text-sm text-muted-foreground">{message}</p>}
-
       {inviteUrl && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
           <span className="truncate font-mono text-muted-foreground">{inviteUrl}</span>
@@ -184,7 +199,7 @@ export function TeamPanel({ members, invites, currentUser }: TeamPanelProps) {
                     variant="ghost"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
                     disabled={busyId === member.userId}
-                    onClick={() => void handleRemoveMember(member.userId)}
+                    onClick={() => void handleRemoveMember(member)}
                     aria-label={`Remove ${member.email ?? "member"}`}
                   >
                     {busyId === member.userId ? (
@@ -220,7 +235,7 @@ export function TeamPanel({ members, invites, currentUser }: TeamPanelProps) {
                   size="sm"
                   variant="outline"
                   disabled={busyId === invite.id}
-                  onClick={() => void handleRevokeInvite(invite.id)}
+                  onClick={() => void handleRevokeInvite(invite)}
                 >
                   {busyId === invite.id ? "Revoking…" : "Revoke"}
                 </Button>

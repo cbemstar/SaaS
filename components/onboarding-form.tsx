@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type OnboardingFormProps = {
   defaultName?: string;
@@ -17,12 +19,10 @@ export function OnboardingForm({ defaultName = "" }: OnboardingFormProps) {
   const [currency, setCurrency] = useState("NZD");
   const [timezone, setTimezone] = useState("Pacific/Auckland");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
-    setError(null);
 
     const response = await fetch("/api/workspace", {
       method: "PATCH",
@@ -33,11 +33,12 @@ export function OnboardingForm({ defaultName = "" }: OnboardingFormProps) {
     setLoading(false);
 
     if (!response.ok) {
-      const payload = (await response.json()) as { error?: string };
-      setError(payload.error ?? "Could not save workspace");
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      toast.error(payload.error ?? "Could not save workspace");
       return;
     }
 
+    toast.success("Workspace ready — let's add your first client");
     router.replace("/clients?welcome=1");
     router.refresh();
   }
@@ -50,39 +51,34 @@ export function OnboardingForm({ defaultName = "" }: OnboardingFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
-          {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          )}
           <div className="grid gap-1.5">
             <Label htmlFor="name">Agency name</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="currency">Reporting currency</Label>
-            <select
-              id="currency"
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-            >
-              <option value="NZD">NZD — New Zealand Dollar</option>
-              <option value="AUD">AUD — Australian Dollar</option>
-            </select>
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger id="currency">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="NZD">NZD — New Zealand Dollar</SelectItem>
+                <SelectItem value="AUD">AUD — Australian Dollar</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="timezone">Timezone</Label>
-            <select
-              id="timezone"
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-            >
-              <option value="Pacific/Auckland">Pacific/Auckland</option>
-              <option value="Australia/Sydney">Australia/Sydney</option>
-              <option value="Australia/Melbourne">Australia/Melbourne</option>
-            </select>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger id="timezone">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Pacific/Auckland">Pacific/Auckland</SelectItem>
+                <SelectItem value="Australia/Sydney">Australia/Sydney</SelectItem>
+                <SelectItem value="Australia/Melbourne">Australia/Melbourne</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Saving…" : "Continue to add your first client"}

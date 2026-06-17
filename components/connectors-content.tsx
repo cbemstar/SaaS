@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { AlertTriangle, BookOpen, Check, ChevronRight, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { connectorGuides } from "@/lib/connector-guides";
 import { channels, type ChannelKey } from "@/lib/catalog";
 import { getConnectorRateLimitInfo, syncAllRateLimitNotice } from "@/lib/connector-rate-limits";
@@ -49,57 +52,64 @@ export function ConnectorsContent({
   errorChannel,
   errorReason,
 }: ConnectorsContentProps) {
+  const router = useRouter();
+  const confirm = useConfirm();
   const [guideChannel, setGuideChannel] = useState<string | null>(highlightChannel ?? null);
   const [syncingAll, setSyncingAll] = useState(false);
   const [syncingChannel, setSyncingChannel] = useState<string | null>(null);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const actionRequired = connectorCatalog.filter((c) => c.status === "action_required");
   const connectedCount = connectorCatalog.filter((c) => c.status === "connected").length;
   const syncAllNotice = syncAllRateLimitNotice(connectedCount);
 
   async function handleSyncAll() {
     if (syncAllNotice) {
-      const proceed = window.confirm(
-        `${syncAllNotice}\n\nMeta (dev tier) allows roughly 600 Ads Insights calls per ad account per hour. Google Ads Explorer tokens are capped at 2,880 operations per day.\n\nContinue with Sync all?`,
-      );
+      const proceed = await confirm({
+        title: "Sync all connectors?",
+        description: `${syncAllNotice} Meta (dev tier) allows ~600 Ads Insights calls per ad account per hour; Google Ads Explorer tokens are capped at 2,880 operations per day.`,
+        confirmText: "Sync all",
+      });
       if (!proceed) return;
     }
 
     setSyncingAll(true);
-    setSyncMessage(null);
+    const toastId = toast.loading("Syncing all connectors…");
     const response = await fetch("/api/connectors/sync", { method: "POST" });
-    const payload = (await response.json()) as { message?: string; error?: string };
+    const payload = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
     setSyncingAll(false);
 
     if (!response.ok) {
-      setSyncMessage(payload.error ?? "Sync failed");
+      toast.error(payload.error ?? "Sync failed", { id: toastId });
       return;
     }
 
-    setSyncMessage(payload.message ?? "Sync complete");
-    window.location.reload();
+    toast.success(payload.message ?? "Sync complete", { id: toastId });
+    router.refresh();
   }
 
   async function handleChannelSync(channel: ChannelKey) {
     const rateLimit = getConnectorRateLimitInfo(channel);
     if (rateLimit.hasRateLimits) {
-      const proceed = window.confirm(`${rateLimit.shortWarning}\n\n${rateLimit.syncGuidance}\n\nSync ${channels[channel].label} now?`);
+      const proceed = await confirm({
+        title: `Sync ${channels[channel].label}?`,
+        description: `${rateLimit.shortWarning} ${rateLimit.syncGuidance}`,
+        confirmText: "Sync now",
+      });
       if (!proceed) return;
     }
 
     setSyncingChannel(channel);
-    setSyncMessage(null);
+    const toastId = toast.loading(`Syncing ${channels[channel].label}…`);
     const response = await fetch(`/api/connectors/${channel}/sync`, { method: "POST" });
-    const payload = (await response.json()) as { message?: string; error?: string };
+    const payload = (await response.json().catch(() => ({}))) as { message?: string; error?: string };
     setSyncingChannel(null);
 
     if (!response.ok) {
-      setSyncMessage(payload.error ?? "Sync failed");
+      toast.error(payload.error ?? "Sync failed", { id: toastId });
       return;
     }
 
-    setSyncMessage(payload.message ?? "Sync complete");
-    window.location.reload();
+    toast.success(payload.message ?? "Sync complete", { id: toastId });
+    router.refresh();
   }
 
   return (
@@ -134,12 +144,6 @@ export function ConnectorsContent({
           </div>
         </CardContent>
       </Card>
-
-      {syncMessage && (
-        <Card className="border-primary/30 bg-primary/[0.04]">
-          <CardContent className="p-4 text-sm">{syncMessage}</CardContent>
-        </Card>
-      )}
 
       {actionRequired.map((connector) => (
         <Card key={connector.key} className="border-warning/30 bg-warning/[0.04]">

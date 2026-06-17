@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowRight,
   Download,
@@ -18,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   allReportBlocks,
   blocksForTemplate,
@@ -73,7 +75,6 @@ export function ReportsWorkspace({
   });
   const [saving, setSaving] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   const client = clients.find((item) => item.id === clientId) ?? clients[0];
   const template = resolvedTemplates.find((item) => item.id === templateId) ?? resolvedTemplates[0];
@@ -115,7 +116,7 @@ export function ReportsWorkspace({
   function applyTemplate(nextTemplateId: string) {
     handleTemplateChange(nextTemplateId);
     setActiveTab("builder");
-    setMessage(`Loaded template “${resolvedTemplates.find((item) => item.id === nextTemplateId)?.name ?? nextTemplateId}”.`);
+    toast.success(`Loaded template “${resolvedTemplates.find((item) => item.id === nextTemplateId)?.name ?? nextTemplateId}”`);
   }
 
   function toggleBlock(blockId: string) {
@@ -144,7 +145,6 @@ export function ReportsWorkspace({
   async function handleSave() {
     if (!client || !template) return;
     setSaving(true);
-    setMessage(null);
     const response = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -158,11 +158,15 @@ export function ReportsWorkspace({
     });
     setSaving(false);
     if (response.status === 401) {
-      setMessage("Sign in to save reports.");
+      toast.error("Your session expired. Sign in and try again.");
       return;
     }
-    setMessage(response.ok ? "Report saved with this template layout." : "Could not save report.");
-    if (response.ok) router.refresh();
+    if (!response.ok) {
+      toast.error("Could not save report");
+      return;
+    }
+    toast.success("Report saved with this template layout");
+    router.refresh();
   }
 
   const pdfHref = client
@@ -197,33 +201,34 @@ export function ReportsWorkspace({
 
         <div className="w-full max-w-xl space-y-2 sm:w-auto">
           <div className="grid gap-2 sm:grid-cols-2">
-            <select
-              value={client.id}
-              onChange={(event) => handleClientChange(event.target.value)}
-              className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-            >
-              {clients.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <select
+            <Select value={client.id} onValueChange={handleClientChange}>
+              <SelectTrigger aria-label="Client">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
               value={template?.id ?? ""}
-              onChange={(event) => handleTemplateChange(event.target.value)}
-              className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+              onValueChange={handleTemplateChange}
               disabled={resolvedTemplates.length === 0}
             >
-              {resolvedTemplates.length === 0 ? (
-                <option value="">No templates — create one in Settings</option>
-              ) : (
-                resolvedTemplates.map((item) => (
-                  <option key={item.id} value={item.id}>
+              <SelectTrigger aria-label="Template">
+                <SelectValue placeholder="No templates — create one in Settings" />
+              </SelectTrigger>
+              <SelectContent>
+                {resolvedTemplates.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
                     {item.name}
-                  </option>
-                ))
-              )}
-            </select>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => void handleSave()} disabled={saving || !template}>
@@ -238,7 +243,6 @@ export function ReportsWorkspace({
               <Send className="h-3.5 w-3.5" /> Send to client
             </Button>
           </div>
-          {message && <p className="text-xs text-muted-foreground">{message}</p>}
         </div>
       </div>
 
@@ -446,7 +450,7 @@ export function ReportsWorkspace({
                         setBlocks(savedBlocks);
                         setActiveTab("builder");
                         syncUrl({ tab: "builder", template: report.template_id, client: report.client_id });
-                        setMessage("Loaded saved report layout.");
+                        toast.success("Loaded saved report layout");
                       }}
                     >
                       Open in builder

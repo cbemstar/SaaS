@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { WorkspaceRow } from "@/lib/supabase/types";
 
 type WorkspaceSettingsFormProps = {
@@ -19,12 +21,10 @@ export function WorkspaceSettingsForm({ workspace, clientCount, clientLimit }: W
   const [currency, setCurrency] = useState(workspace.currency);
   const [timezone, setTimezone] = useState(workspace.timezone);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   async function handleSave(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
-    setMessage(null);
 
     const response = await fetch("/api/workspace", {
       method: "PATCH",
@@ -34,16 +34,19 @@ export function WorkspaceSettingsForm({ workspace, clientCount, clientLimit }: W
 
     setLoading(false);
     if (response.status === 401) {
-      setMessage("Sign in to save changes.");
+      toast.error("Your session expired. Sign in and try again.");
       return;
     }
-    setMessage(response.ok ? "Workspace saved." : "Could not save workspace.");
+    if (!response.ok) {
+      toast.error("Could not save workspace");
+      return;
+    }
+    toast.success("Workspace saved");
     router.refresh();
   }
 
   return (
     <div className="space-y-4">
-      {message && <p className="text-sm text-muted-foreground">{message}</p>}
       <form onSubmit={(event) => void handleSave(event)} className="space-y-3">
         <div className="grid gap-1.5">
           <Label>Agency name</Label>
@@ -51,14 +54,15 @@ export function WorkspaceSettingsForm({ workspace, clientCount, clientLimit }: W
         </div>
         <div className="grid gap-1.5">
           <Label>Reporting currency</Label>
-          <select
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-          >
-            <option value="NZD">NZD</option>
-            <option value="AUD">AUD</option>
-          </select>
+          <Select value={currency} onValueChange={setCurrency}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="NZD">NZD</SelectItem>
+              <SelectItem value="AUD">AUD</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="grid gap-1.5">
           <Label>Timezone</Label>

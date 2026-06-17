@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { channels, type ChannelKey, type Client } from "@/lib/catalog";
 import { ClientConnectorLinksPanel } from "@/components/client-connector-links-panel";
 import type { ClientConnectorLinkView } from "@/lib/client-connector-links";
@@ -20,13 +23,13 @@ type ClientSettingsFormProps = {
 
 export function ClientSettingsForm({ client, connectors, connectorLinks }: ClientSettingsFormProps) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [name, setName] = useState(client.name);
   const [industry, setIndustry] = useState(client.industry);
   const [status, setStatus] = useState(client.status);
   const [selectedChannels, setSelectedChannels] = useState<ChannelKey[]>(client.channels);
   const [contactEmail, setContactEmail] = useState(client.contact_email ?? "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function toggleChannel(channel: ChannelKey) {
     setSelectedChannels((current) =>
@@ -37,7 +40,6 @@ export function ClientSettingsForm({ client, connectors, connectorLinks }: Clien
   async function handleSave(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
-    setError(null);
 
     const response = await fetch(`/api/clients/${client.id}`, {
       method: "PATCH",
@@ -53,25 +55,31 @@ export function ClientSettingsForm({ client, connectors, connectorLinks }: Clien
 
     setLoading(false);
     if (!response.ok) {
-      const payload = (await response.json()) as { error?: string };
-      setError(payload.error ?? "Could not save changes");
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      toast.error(payload.error ?? "Could not save changes");
       return;
     }
 
+    toast.success("Client details saved");
     router.refresh();
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete ${client.name}? This cannot be undone.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Delete ${client.name}?`,
+      description: "This removes the client and all of its synced performance data. This cannot be undone.",
+      confirmText: "Delete client",
+      destructive: true,
+    });
+    if (!ok) return;
 
     const response = await fetch(`/api/clients/${client.id}`, { method: "DELETE" });
     if (!response.ok) {
-      setError("Could not delete client");
+      toast.error("Could not delete client");
       return;
     }
 
+    toast.success(`${client.name} deleted`);
     router.push("/clients");
     router.refresh();
   }
@@ -80,11 +88,6 @@ export function ClientSettingsForm({ client, connectors, connectorLinks }: Clien
     <div className="space-y-6">
       <form onSubmit={(event) => void handleSave(event)} className="space-y-4 rounded-lg border p-4">
         <h3 className="text-sm font-semibold">Client details</h3>
-        {error && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </div>
-        )}
         <div className="grid gap-1.5">
           <Label htmlFor="edit-name">Name</Label>
           <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -95,16 +98,16 @@ export function ClientSettingsForm({ client, connectors, connectorLinks }: Clien
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="edit-status">Status</Label>
-          <select
-            id="edit-status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as Client["status"])}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-          >
-            <option value="active">Active</option>
-            <option value="onboarding">Onboarding</option>
-            <option value="paused">Paused</option>
-          </select>
+          <Select value={status} onValueChange={(value) => setStatus(value as Client["status"])}>
+            <SelectTrigger id="edit-status">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="onboarding">Onboarding</SelectItem>
+              <SelectItem value="paused">Paused</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="contact-email">Report delivery email</Label>

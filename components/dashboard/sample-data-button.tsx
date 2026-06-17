@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -12,32 +13,29 @@ import { Button } from "@/components/ui/button";
 export function SampleDataButton({ variant = "outline" }: { variant?: "outline" | "default" }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
-    setError(null);
+    const toastId = toast.loading("Loading sample data…");
     try {
       const res = await fetch("/api/dev/seed-metrics", { method: "POST" });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "Could not load sample data");
       }
+      toast.success("Sample data loaded", { id: toastId });
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load sample data");
+      toast.error(e instanceof Error ? e.message : "Could not load sample data", { id: toastId });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button variant={variant} size="sm" className="gap-1.5" disabled={loading} onClick={() => void load()}>
-        <FlaskConical className="h-3.5 w-3.5" />
-        {loading ? "Loading sample data…" : "Load sample data"}
-      </Button>
-      {error && <span className="text-xs text-destructive">{error}</span>}
-    </div>
+    <Button variant={variant} size="sm" className="gap-1.5" disabled={loading} onClick={() => void load()}>
+      <FlaskConical className="h-3.5 w-3.5" />
+      {loading ? "Loading sample data…" : "Load sample data"}
+    </Button>
   );
 }
