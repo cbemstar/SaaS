@@ -1,5 +1,6 @@
 import type { PerformanceSeedRow } from "@/lib/connectors/meta";
 import type { SourceMetricsResult } from "@/lib/metrics/catalog";
+import { throwIfAuthStatus } from "@/lib/connectors/errors";
 
 type GscRow = {
   keys?: string[];
@@ -57,6 +58,7 @@ export async function fetchSearchConsoleDailyPerformance(
   );
 
   if (!response.ok) {
+    throwIfAuthStatus("search_console", response.status);
     const errorText = await response.text();
     console.error("Search Console query failed", response.status, errorText);
     return null;
@@ -108,6 +110,7 @@ export async function fetchSearchConsoleMetrics(
       body: JSON.stringify({ startDate, endDate, ...body }),
     });
     if (!res.ok) {
+      throwIfAuthStatus("search_console", res.status);
       console.error("Search Console query failed", res.status, await res.text());
       return [];
     }

@@ -1,3 +1,5 @@
+import { throwIfAuthStatus } from "@/lib/connectors/errors";
+
 type PerformanceSeedRow = {
   date: string;
   label: string;
@@ -37,6 +39,7 @@ export async function fetchMetaDailyPerformance(
 
   const response = await fetch(`https://graph.facebook.com/v20.0/${accountId}/insights?${params.toString()}`);
   if (!response.ok) {
+    throwIfAuthStatus("meta", response.status);
     return null;
   }
 
@@ -116,6 +119,7 @@ async function metaInsights(
   for (let page = 0; url && page < 10; page++) {
     const res: Response = await fetch(url);
     if (!res.ok) {
+      throwIfAuthStatus("meta", res.status);
       console.error("Meta insights failed", res.status, await res.text());
       break;
     }

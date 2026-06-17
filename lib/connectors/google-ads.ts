@@ -1,5 +1,6 @@
 import type { PerformanceSeedRow } from "@/lib/connectors/meta";
 import type { SourceMetricsResult } from "@/lib/metrics/catalog";
+import { throwIfAuthStatus } from "@/lib/connectors/errors";
 
 type GoogleAdsRow = {
   segments?: { date?: string; device?: string };
@@ -39,6 +40,7 @@ export async function fetchGoogleAdsDailyPerformance(
   });
 
   if (!response.ok) {
+    throwIfAuthStatus("google_ads", response.status);
     return null;
   }
 
@@ -85,6 +87,7 @@ export async function fetchGoogleAdsMetrics(
       body: JSON.stringify({ query }),
     });
     if (!res.ok) {
+      throwIfAuthStatus("google_ads", res.status);
       console.error("Google Ads query failed", res.status, await res.text());
       return [];
     }

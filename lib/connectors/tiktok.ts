@@ -1,4 +1,5 @@
 import type { SourceMetricsResult } from "@/lib/metrics/catalog";
+import { throwIfAuthStatus } from "@/lib/connectors/errors";
 
 // Best-effort TikTok Business API integration. NOT yet validated against a live
 // advertiser — verify metric/dimension names and the response shape when a real
@@ -47,6 +48,7 @@ async function report(
     { headers: { "Access-Token": accessToken } },
   );
   if (!res.ok) {
+    throwIfAuthStatus("tiktok", res.status);
     console.error("TikTok report failed", res.status, await res.text());
     return [];
   }

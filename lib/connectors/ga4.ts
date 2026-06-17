@@ -1,5 +1,6 @@
 import type { PerformanceSeedRow } from "@/lib/connectors/meta";
 import type { Ga4DimensionType, Ga4MetricKey } from "@/lib/supabase/types";
+import { throwIfAuthStatus } from "@/lib/connectors/errors";
 
 type Ga4ReportRow = {
   dimensionValues?: Array<{ value?: string }>;
@@ -44,6 +45,7 @@ export async function fetchGa4DailyPerformance(
   });
 
   if (!response.ok) {
+    throwIfAuthStatus("ga4", response.status);
     const errorText = await response.text();
     console.error("GA4 runReport failed", response.status, errorText);
     return null;
@@ -186,6 +188,7 @@ async function runGa4Report(
   }
 
   if (!response.ok) {
+    throwIfAuthStatus("ga4", response.status);
     console.error("GA4 runReport failed", response.status, await response.text());
     return null;
   }

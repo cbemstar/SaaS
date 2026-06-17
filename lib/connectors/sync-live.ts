@@ -7,6 +7,8 @@ import { writeBreakdowns, writeDailyMetrics } from "@/lib/metrics/store";
 import { fetchGoogleAdsDailyPerformance, fetchGoogleAdsMetrics } from "@/lib/connectors/google-ads";
 import { getGoogleAccessToken } from "@/lib/connectors/google-auth";
 import { readConnectorTokens } from "@/lib/connectors/store";
+import { getLinkedInAccessToken, getMetaAccessToken } from "@/lib/connectors/token-refresh";
+import { isConnectorAuthError } from "@/lib/connectors/errors";
 import { fetchMetaDailyPerformance, fetchMetaMetrics, type PerformanceSeedRow } from "@/lib/connectors/meta";
 import { fetchLinkedInMetrics } from "@/lib/connectors/linkedin";
 import { fetchTikTokMetrics } from "@/lib/connectors/tiktok";
@@ -40,12 +42,18 @@ function mergePerformanceRows(rows: PerformanceSeedRow[]): PerformanceSeedRow[] 
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+export type LivePullResult = {
+  rows: PerformanceSeedRow[] | null;
+  /** Channels whose provider rejected our credentials (need reconnect). */
+  authFailed: ChannelKey[];
+};
+
 export async function pullLivePerformanceForClient(
   admin: AdminClient,
   workspaceId: string,
   clientId: string,
   channels: ChannelKey[],
-): Promise<PerformanceSeedRow[] | null> {
+): Promise<LivePullResult> {
   const { data: links } = await admin
     .from("client_connector_links")
     .select("channel, external_account_id")
@@ -54,43 +62,51 @@ export async function pullLivePerformanceForClient(
 
   const linkByChannel = new Map((links ?? []).map((link) => [link.channel, link.external_account_id]));
   const liveRows: PerformanceSeedRow[] = [];
+  const authFailed: ChannelKey[] = [];
 
   for (const channel of channels) {
-    if (channel === "meta") {
-      const accessToken = await getConnectorAccessToken(admin, workspaceId, "meta");
-      const accountId = linkByChannel.get("meta");
-      if (!accessToken || !accountId) continue;
-      const rows = await fetchMetaDailyPerformance(accessToken, accountId);
-      if (rows) liveRows.push(...rows);
-    }
+    // Each channel is isolated: an expired token on one must not abort the
+    // others, and an auth failure is recorded (not swallowed as "no data").
+    try {
+      if (channel === "meta") {
+        const accessToken = await getConnectorAccessToken(admin, workspaceId, "meta");
+        const accountId = linkByChannel.get("meta");
+        if (!accessToken || !accountId) continue;
+        const rows = await fetchMetaDailyPerformance(accessToken, accountId);
+        if (rows) liveRows.push(...rows);
+      }
 
-    if (channel === "google_ads") {
-      const accessToken = await getGoogleAccessToken(admin, workspaceId, "google_ads");
-      const customerId = linkByChannel.get("google_ads");
-      const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-      if (!accessToken || !customerId || !developerToken) continue;
-      const rows = await fetchGoogleAdsDailyPerformance(accessToken, customerId, developerToken);
-      if (rows) liveRows.push(...rows);
-    }
+      if (channel === "google_ads") {
+        const accessToken = await getGoogleAccessToken(admin, workspaceId, "google_ads");
+        const customerId = linkByChannel.get("google_ads");
+        const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+        if (!accessToken || !customerId || !developerToken) continue;
+        const rows = await fetchGoogleAdsDailyPerformance(accessToken, customerId, developerToken);
+        if (rows) liveRows.push(...rows);
+      }
 
-    if (channel === "ga4") {
-      const accessToken = await getGoogleAccessToken(admin, workspaceId, "ga4");
-      const propertyId = linkByChannel.get("ga4");
-      if (!accessToken || !propertyId) continue;
-      const rows = await fetchGa4DailyPerformance(accessToken, propertyId);
-      if (rows) liveRows.push(...rows);
-    }
+      if (channel === "ga4") {
+        const accessToken = await getGoogleAccessToken(admin, workspaceId, "ga4");
+        const propertyId = linkByChannel.get("ga4");
+        if (!accessToken || !propertyId) continue;
+        const rows = await fetchGa4DailyPerformance(accessToken, propertyId);
+        if (rows) liveRows.push(...rows);
+      }
 
-    if (channel === "search_console") {
-      const accessToken = await getGoogleAccessToken(admin, workspaceId, "search_console");
-      const siteUrl = linkByChannel.get("search_console");
-      if (!accessToken || !siteUrl) continue;
-      const rows = await fetchSearchConsoleDailyPerformance(accessToken, siteUrl);
-      if (rows) liveRows.push(...rows);
+      if (channel === "search_console") {
+        const accessToken = await getGoogleAccessToken(admin, workspaceId, "search_console");
+        const siteUrl = linkByChannel.get("search_console");
+        if (!accessToken || !siteUrl) continue;
+        const rows = await fetchSearchConsoleDailyPerformance(accessToken, siteUrl);
+        if (rows) liveRows.push(...rows);
+      }
+    } catch (error) {
+      if (isConnectorAuthError(error)) authFailed.push(error.channel);
+      else console.error(`${channel} live pull failed`, error);
     }
   }
 
-  return liveRows.length ? mergePerformanceRows(liveRows) : null;
+  return { rows: liveRows.length ? mergePerformanceRows(liveRows) : null, authFailed };
 }
 
 async function getClientLink(
@@ -179,6 +195,9 @@ async function getConnectorAccessToken(
   workspaceId: string,
   channel: ChannelKey,
 ): Promise<string | null> {
+  // Meta and LinkedIn refresh near expiry; others read the stored token as-is.
+  if (channel === "meta") return getMetaAccessToken(admin, workspaceId);
+  if (channel === "linkedin") return getLinkedInAccessToken(admin, workspaceId);
   const { access_token } = await readConnectorTokens(admin, workspaceId, channel);
   return access_token;
 }
@@ -219,37 +238,38 @@ export async function syncGoogleAdsMetricsForClient(admin: AdminClient, workspac
   );
 }
 
-/** Pulls rich metrics into the generic store for every supported channel a client has. */
+/**
+ * Pulls rich metrics into the generic store for every supported channel a client
+ * has. Returns the channels whose provider rejected our credentials so the
+ * caller can flag them action_required.
+ */
 export async function syncRichMetricsForClient(
   admin: AdminClient,
   workspaceId: string,
   clientId: string,
   channels: ChannelKey[],
-) {
-  const jobs: Array<Promise<unknown>> = [];
-  if (channels.includes("ga4"))
-    jobs.push(syncGa4MetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("GA4 sync failed", e)));
+): Promise<ChannelKey[]> {
+  const authFailed: ChannelKey[] = [];
+  const run = async (channel: ChannelKey, fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+    } catch (error) {
+      if (isConnectorAuthError(error)) authFailed.push(error.channel);
+      else console.error(`${channel} sync failed`, error);
+    }
+  };
+
+  const jobs: Array<Promise<void>> = [];
+  if (channels.includes("ga4")) jobs.push(run("ga4", () => syncGa4MetricsForClient(admin, workspaceId, clientId)));
   if (channels.includes("search_console"))
-    jobs.push(
-      syncSearchConsoleMetricsForClient(admin, workspaceId, clientId).catch((e) =>
-        console.error("Search Console sync failed", e),
-      ),
-    );
+    jobs.push(run("search_console", () => syncSearchConsoleMetricsForClient(admin, workspaceId, clientId)));
   if (channels.includes("google_ads"))
-    jobs.push(
-      syncGoogleAdsMetricsForClient(admin, workspaceId, clientId).catch((e) =>
-        console.error("Google Ads sync failed", e),
-      ),
-    );
-  if (channels.includes("meta"))
-    jobs.push(syncMetaMetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("Meta sync failed", e)));
+    jobs.push(run("google_ads", () => syncGoogleAdsMetricsForClient(admin, workspaceId, clientId)));
+  if (channels.includes("meta")) jobs.push(run("meta", () => syncMetaMetricsForClient(admin, workspaceId, clientId)));
   if (channels.includes("linkedin"))
-    jobs.push(
-      syncLinkedInMetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("LinkedIn sync failed", e)),
-    );
+    jobs.push(run("linkedin", () => syncLinkedInMetricsForClient(admin, workspaceId, clientId)));
   if (channels.includes("tiktok"))
-    jobs.push(
-      syncTikTokMetricsForClient(admin, workspaceId, clientId).catch((e) => console.error("TikTok sync failed", e)),
-    );
+    jobs.push(run("tiktok", () => syncTikTokMetricsForClient(admin, workspaceId, clientId)));
   await Promise.all(jobs);
+  return authFailed;
 }

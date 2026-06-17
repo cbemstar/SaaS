@@ -42,7 +42,11 @@ export async function exchangeOAuthCode(
         console.error("Meta OAuth token exchange failed", error);
         return { ok: false, error };
       }
-      return { ok: true, tokens: (await response.json()) as TokenResponse };
+      const shortLived = (await response.json()) as TokenResponse;
+      // The code exchange returns a short-lived (~1h) token. Immediately swap it
+      // for a long-lived (~60d) token so the connector doesn't break within the hour.
+      const longLived = await exchangeMetaLongLivedToken(shortLived.access_token);
+      return { ok: true, tokens: longLived ?? shortLived };
     }
     case "google_ads":
     case "ga4":
@@ -97,4 +101,26 @@ export async function exchangeOAuthCode(
 
 export function connectorRedirectUri(channel: ChannelKey) {
   return `${appUrl}/api/connectors/${channel}/callback`;
+}
+
+/** Swap a short-lived Meta token for a long-lived (~60-day) one. Returns null on failure. */
+async function exchangeMetaLongLivedToken(shortLivedToken: string): Promise<TokenResponse | null> {
+  if (!process.env.META_APP_ID || !process.env.META_APP_SECRET) return null;
+  try {
+    const params = new URLSearchParams({
+      grant_type: "fb_exchange_token",
+      client_id: process.env.META_APP_ID,
+      client_secret: process.env.META_APP_SECRET,
+      fb_exchange_token: shortLivedToken,
+    });
+    const res = await fetch(`https://graph.facebook.com/v20.0/oauth/access_token?${params.toString()}`);
+    if (!res.ok) {
+      console.error("Meta long-lived token exchange failed", res.status);
+      return null;
+    }
+    return (await res.json()) as TokenResponse;
+  } catch (error) {
+    console.error("Meta long-lived token exchange error", error);
+    return null;
+  }
 }

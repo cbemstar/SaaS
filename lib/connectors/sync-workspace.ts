@@ -21,6 +21,8 @@ export type WorkspaceSyncResult = {
   skippedClients: number;
   rowsImported: number;
   sanitizedRows: number;
+  /** Channels flagged action_required because the provider rejected our token. */
+  authFailedChannels: ChannelKey[];
 };
 
 type SyncOptions = {
@@ -35,14 +37,20 @@ async function upsertClientPerformance(
   clientId: string,
   syncedChannels: ChannelKey[],
   fullSync: boolean,
-) {
-  const livePerformance = await pullLivePerformanceForClient(admin, workspaceId, clientId, syncedChannels);
+): Promise<{ imported: number; authFailed: ChannelKey[] }> {
+  const { rows: livePerformance, authFailed } = await pullLivePerformanceForClient(
+    admin,
+    workspaceId,
+    clientId,
+    syncedChannels,
+  );
   // An empty/null pull is indistinguishable from a transient API error or an
-  // expired token (fetchers swallow errors and return null). Clearing here would
-  // wipe previously-synced data on any hiccup — so we skip and leave data intact.
-  // Deliberate removal is handled by disconnect/unmap/purge, not by an empty sync.
+  // expired token. Clearing here would wipe previously-synced data on any hiccup —
+  // so we skip and leave data intact. Deliberate removal is handled by
+  // disconnect/unmap/purge, not by an empty sync. (Auth failures are surfaced
+  // separately via `authFailed` so the connector is flagged for reconnect.)
   if (!livePerformance?.length) {
-    return 0;
+    return { imported: 0, authFailed };
   }
 
   const totalLiveSpend = livePerformance.reduce(
@@ -55,7 +63,7 @@ async function upsertClientPerformance(
   if (totalLiveSpend === 0 && totalLiveOrganic === 0 && totalLiveConversions === 0) {
     // Got a response but every metric is zero — could be a genuine no-activity
     // period or a degraded response. Don't destroy existing data; skip.
-    return 0;
+    return { imported: 0, authFailed };
   }
 
   const dates = livePerformance.map((day) => day.date);
@@ -82,7 +90,7 @@ async function upsertClientPerformance(
   });
   await refreshClientMetricsFromPerformance(workspaceId, clientId);
 
-  return performanceRows.length;
+  return { imported: performanceRows.length, authFailed };
 }
 
 export async function syncWorkspaceConnectors(
@@ -149,6 +157,7 @@ async function runWorkspaceSync(
       skippedClients: 0,
       rowsImported: 0,
       sanitizedRows: 0,
+      authFailedChannels: [],
     };
   }
 
@@ -176,15 +185,17 @@ async function runWorkspaceSync(
       skippedClients: clients.length,
       rowsImported: 0,
       sanitizedRows,
+      authFailedChannels: [],
     };
   }
 
   const fullSync = !options.channel;
   let syncedClients = 0;
   let liveClients = 0;
-  let clearedClients = 0;
+  const clearedClients = 0;
   let skippedClients = 0;
   let rowsImported = 0;
+  const authFailedChannels = new Set<ChannelKey>();
 
   for (const client of clients) {
     const activeChannels = (client.channels as ChannelKey[]).filter((value) => connectedSet.has(value));
@@ -197,23 +208,20 @@ async function runWorkspaceSync(
       continue;
     }
 
-    await syncRichMetricsForClient(admin, workspaceId, client.id, channelsForSync);
+    const richAuthFailed = await syncRichMetricsForClient(admin, workspaceId, client.id, channelsForSync);
+    richAuthFailed.forEach((channel) => authFailedChannels.add(channel));
 
-    const imported = await upsertClientPerformance(
+    const { imported, authFailed } = await upsertClientPerformance(
       admin,
       workspaceId,
       client.id,
       channelsForSync,
       fullSync && channelsForSync.length === activeChannels.length,
     );
+    authFailed.forEach((channel) => authFailedChannels.add(channel));
 
     if (imported === 0) {
       skippedClients += 1;
-      continue;
-    }
-
-    if (imported < 0) {
-      clearedClients += 1;
       continue;
     }
 
@@ -237,7 +245,28 @@ async function runWorkspaceSync(
     await updateQuery;
   }
 
-  return { syncedClients, liveClients, clearedClients, skippedClients, rowsImported, sanitizedRows };
+  // Flag connectors whose token the provider rejected so the user reconnects,
+  // rather than the connector silently importing nothing every sync.
+  if (authFailedChannels.size > 0) {
+    await admin
+      .from("connector_accounts")
+      .update({
+        status: "action_required",
+        description: "Authorization expired or was revoked. Reconnect to resume syncing.",
+      })
+      .eq("workspace_id", workspaceId)
+      .in("channel", [...authFailedChannels]);
+  }
+
+  return {
+    syncedClients,
+    liveClients,
+    clearedClients,
+    skippedClients,
+    rowsImported,
+    sanitizedRows,
+    authFailedChannels: [...authFailedChannels],
+  };
 }
 
 export async function syncConnectorChannel(

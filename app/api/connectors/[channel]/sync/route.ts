@@ -51,7 +51,9 @@ export async function POST(_request: Request, context: RouteContext) {
   const label = channels[channel].label;
 
   let message: string;
-  if (result.rowsImported > 0) {
+  if (result.authFailedChannels.includes(channel)) {
+    message = `${label} authorization expired or was revoked. Reconnect ${label} to resume syncing.`;
+  } else if (result.rowsImported > 0) {
     message = `Imported ${result.rowsImported} day${result.rowsImported === 1 ? "" : "s"} for ${result.syncedClients} client${result.syncedClients === 1 ? "" : "s"}.`;
   } else if (result.clearedClients > 0) {
     message = `${label} is connected, but the mapped account returned no data in the last 30 days. Cleared stale metrics for ${result.clearedClients} client${result.clearedClients === 1 ? "" : "s"}.`;

@@ -1,4 +1,5 @@
 import type { SourceMetricsResult } from "@/lib/metrics/catalog";
+import { throwIfAuthStatus } from "@/lib/connectors/errors";
 
 // Best-effort LinkedIn Marketing adAnalytics integration. NOT yet validated
 // against a live LinkedIn Ads account — verify field names and the restli
@@ -60,6 +61,7 @@ async function query(accessToken: string, accountId: string, pivot: string): Pro
     },
   });
   if (!res.ok) {
+    throwIfAuthStatus("linkedin", res.status);
     console.error("LinkedIn adAnalytics failed", res.status, await res.text());
     return [];
   }

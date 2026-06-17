@@ -16,11 +16,16 @@ export async function POST() {
 
   const result = await syncWorkspaceConnectors(admin, workspaceId, { triggeredBy: "all" });
 
+  const reconnectNote =
+    result.authFailedChannels.length > 0
+      ? ` ${result.authFailedChannels.length} connector${result.authFailedChannels.length === 1 ? "" : "s"} need reconnecting.`
+      : "";
+
   let message: string;
   if (result.rowsImported > 0) {
-    message = `Synced ${result.syncedClients} client${result.syncedClients === 1 ? "" : "s"} · ${result.rowsImported} day${result.rowsImported === 1 ? "" : "s"} imported${result.sanitizedRows > 0 ? ` · cleared stale data from ${result.sanitizedRows} row${result.sanitizedRows === 1 ? "" : "s"}` : ""}.`;
-  } else if (result.clearedClients > 0) {
-    message = `Connected accounts returned no data in the last 30 days. Cleared stale metrics for ${result.clearedClients} client${result.clearedClients === 1 ? "" : "s"}.`;
+    message = `Synced ${result.syncedClients} client${result.syncedClients === 1 ? "" : "s"} · ${result.rowsImported} day${result.rowsImported === 1 ? "" : "s"} imported${result.sanitizedRows > 0 ? ` · cleared stale data from ${result.sanitizedRows} row${result.sanitizedRows === 1 ? "" : "s"}` : ""}.${reconnectNote}`;
+  } else if (result.authFailedChannels.length > 0) {
+    message = `Some connectors need reconnecting before they can sync (${result.authFailedChannels.join(", ")}).`;
   } else {
     message = "No live connector data available to sync. Connect accounts, map them to clients, and try again.";
   }
