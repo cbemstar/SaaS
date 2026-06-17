@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { SettingsCheckoutButton } from "@/components/settings-checkout-button";
 import { cn } from "@/lib/utils";
 import type { PricingPlanName } from "@/lib/billing";
+import type { AiUsage } from "@/lib/ai/usage";
 
 type PlanCard = {
   name: PricingPlanName;
@@ -22,14 +23,17 @@ type BillingPanelProps = {
   currentPlan: PricingPlanName;
   clientCount: number;
   clientLimit: number;
+  aiUsage?: AiUsage | null;
 };
 
 const planRank: Record<PricingPlanName, number> = { Solo: 0, Agency: 1, Scale: 2 };
 
-export function BillingPanel({ plans, currentPlan, clientCount, clientLimit }: BillingPanelProps) {
+export function BillingPanel({ plans, currentPlan, clientCount, clientLimit, aiUsage }: BillingPanelProps) {
   const [annual, setAnnual] = useState(false);
   const usage = clientLimit > 0 ? Math.min(100, Math.round((clientCount / clientLimit) * 100)) : 0;
   const nearLimit = usage >= 80;
+  const aiPct = aiUsage && aiUsage.limit > 0 ? Math.min(100, Math.round((aiUsage.used / aiUsage.limit) * 100)) : 0;
+  const aiNearLimit = aiPct >= 80;
 
   return (
     <div className="space-y-6">
@@ -44,16 +48,29 @@ export function BillingPanel({ plans, currentPlan, clientCount, clientLimit }: B
               </Badge>
             </div>
           </div>
-          <div className="w-full max-w-xs">
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Active clients</span>
-              <span className={cn("font-medium tabular-nums", nearLimit && "text-warning")}>
-                {clientCount} / {clientLimit}
-              </span>
+          <div className="w-full max-w-xs space-y-3">
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Active clients</span>
+                <span className={cn("font-medium tabular-nums", nearLimit && "text-warning")}>
+                  {clientCount} / {clientLimit}
+                </span>
+              </div>
+              <Progress value={usage} />
+              {nearLimit && (
+                <p className="mt-1.5 text-xs text-warning">You are close to your plan limit — consider upgrading.</p>
+              )}
             </div>
-            <Progress value={usage} />
-            {nearLimit && (
-              <p className="mt-1.5 text-xs text-warning">You are close to your plan limit — consider upgrading.</p>
+            {aiUsage && (
+              <div>
+                <div className="mb-1 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">AI credits</span>
+                  <span className={cn("font-medium tabular-nums", aiNearLimit && !aiUsage.byok && "text-warning")}>
+                    {aiUsage.byok ? "Your own key" : `${aiUsage.used.toLocaleString()} / ${aiUsage.limit.toLocaleString()}`}
+                  </span>
+                </div>
+                {!aiUsage.byok && <Progress value={aiPct} />}
+              </div>
             )}
           </div>
         </div>

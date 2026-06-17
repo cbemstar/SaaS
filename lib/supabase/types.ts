@@ -167,6 +167,18 @@ export type WorkspaceRow = {
   ai_cite_evidence?: boolean;
   ai_human_review?: boolean;
   ai_tone?: "concise" | "detailed" | "persuasive" | null;
+  ai_byok_provider?: "google" | "openai" | "anthropic" | null;
+  ai_byok_key_cipher?: string | null;
+  ai_byok_model?: string | null;
+  ai_byok_base_url?: string | null;
+  ai_byok_key_hint?: string | null;
+};
+
+export type AiUsageRow = {
+  workspace_id: string;
+  period: string;
+  credits_used: number;
+  updated_at: string;
 };
 
 export type WorkspaceBrandingUpdate = Partial<
@@ -184,6 +196,11 @@ export type WorkspaceBrandingUpdate = Partial<
     | "ai_cite_evidence"
     | "ai_human_review"
     | "ai_tone"
+    | "ai_byok_provider"
+    | "ai_byok_key_cipher"
+    | "ai_byok_model"
+    | "ai_byok_base_url"
+    | "ai_byok_key_hint"
   >
 >;
 
@@ -501,9 +518,20 @@ export type Database = {
         Update: Partial<ReportShareRow>;
         Relationships: [];
       };
+      ai_usage: {
+        Row: AiUsageRow;
+        Insert: Pick<AiUsageRow, "workspace_id" | "period"> & Partial<AiUsageRow>;
+        Update: Partial<AiUsageRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      increment_ai_usage: {
+        Args: { p_workspace_id: string; p_period: string; p_amount?: number };
+        Returns: number;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

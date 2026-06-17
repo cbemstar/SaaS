@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
 import { requireWorkspaceId, getActiveWorkspace } from "@/lib/workspace";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getReportData } from "@/lib/report-builder/report-data";
-import { anthropicApiKey } from "@/lib/env";
+import { resolveAiModel } from "@/lib/ai/provider";
+import { checkAiCredit, recordAiUsage } from "@/lib/ai/usage";
 import { deltaPercent, formatMetric, getSourceDef, type MetricSource } from "@/lib/metrics/catalog";
 
 const bodySchema = z.object({
@@ -30,9 +30,6 @@ export async function POST(request: Request) {
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!anthropicApiKey) {
-    return NextResponse.json({ error: "AI is not configured (ANTHROPIC_API_KEY)" }, { status: 503 });
-  }
 
   let body: z.infer<typeof bodySchema>;
   try {
@@ -45,6 +42,26 @@ export async function POST(request: Request) {
   const admin = createSupabaseAdminClient();
   const workspace = await getActiveWorkspace();
   const currency = workspace?.currency ?? "NZD";
+
+  const resolved = resolveAiModel(workspace);
+  if (!resolved) {
+    return NextResponse.json(
+      { error: "AI is not configured. Add your own API key in Settings → AI to enable it." },
+      { status: 503 },
+    );
+  }
+
+  // Metered (non-BYOK) workspaces must have credits left this month.
+  const { allowed, usage } = await checkAiCredit(workspaceId, workspace);
+  if (!allowed) {
+    return NextResponse.json(
+      {
+        error: `You've used all ${usage.limit} AI credits on the ${usage.plan} plan this month. Upgrade your plan or add your own API key in Settings → AI.`,
+        usage,
+      },
+      { status: 402 },
+    );
+  }
 
   const { data: client } = admin
     ? await admin.from("clients").select("name").eq("workspace_id", workspaceId).eq("id", body.clientId).maybeSingle()
@@ -78,9 +95,11 @@ export async function POST(request: Request) {
 
   try {
     const { text } = await generateText({
-      model: anthropic("claude-sonnet-4-6"),
+      model: resolved.model,
       prompt: `${INSTRUCTIONS[body.kind]}\n\nClient: ${clientName}\nPeriod: last ${body.days} days\n\nData:\n${dataSummary}\n\nReturn clean semantic HTML using only <p>, <strong>, <em>, <ul> and <li>. No markdown, no headings, no preamble or sign-off.`,
     });
+    // Count the credit only after a successful generation (no-op for BYOK).
+    await recordAiUsage(workspaceId, workspace);
     return NextResponse.json({ text });
   } catch (error) {
     console.error("Report AI generation failed", error);

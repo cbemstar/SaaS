@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { WorkspaceSettingsForm } from "@/components/workspace-settings-form";
 import { BrandingSettingsForm } from "@/components/settings/branding-settings-form";
 import { AiSettingsForm } from "@/components/settings/ai-settings-form";
+import { AiProviderForm } from "@/components/settings/ai-provider-form";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { TeamPanel } from "@/components/settings/team-panel";
 import { DataPanel } from "@/components/settings/data-panel";
@@ -17,6 +18,8 @@ import {
 import { getReportTemplates } from "@/lib/data";
 import { canManageTeam, getMemberRole, listPendingInvites, listTeamMembers } from "@/lib/team";
 import { getActiveWorkspace, getActiveWorkspaceId, getAuthenticatedUser, getClientCount } from "@/lib/workspace";
+import { getAiUsage } from "@/lib/ai/usage";
+import { isEncryptionConfigured } from "@/lib/crypto";
 
 type SettingsPageProps = {
   searchParams: Promise<{ tab?: string; checkout?: string }>;
@@ -49,6 +52,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     ? await getClientLimitForWorkspace(workspaceId)
     : pricingPlans.Solo.clientLimit;
   const currentPlan: PricingPlanName = workspaceId ? await getWorkspacePlanName(workspaceId) : "Solo";
+  const aiUsage = workspaceId ? await getAiUsage(workspaceId, workspace) : null;
+  const encryptionConfigured = isEncryptionConfigured();
 
   return (
     <AppShell title="Settings" subtitle="Workspace, branding, AI, templates and billing">
@@ -102,7 +107,33 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             </Card>
           </TabsContent>
 
-          <TabsContent value="ai">
+          <TabsContent value="ai" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>AI provider &amp; credits</CardTitle>
+                <CardDescription>
+                  Kōrero includes AI credits on every plan (Google Gemini). Bring your own key for any provider to skip
+                  limits and pick your model.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="max-w-xl">
+                {workspace ? (
+                  <AiProviderForm
+                    initial={{
+                      provider: workspace.ai_byok_provider ?? null,
+                      model: workspace.ai_byok_model ?? null,
+                      baseUrl: workspace.ai_byok_base_url ?? null,
+                      keyHint: workspace.ai_byok_key_hint ?? null,
+                      hasKey: Boolean(workspace.ai_byok_key_cipher),
+                    }}
+                    usage={aiUsage}
+                    encryptionConfigured={encryptionConfigured}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sign in to manage AI settings.</p>
+                )}
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>AI engine</CardTitle>
@@ -171,6 +202,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                   currentPlan={currentPlan}
                   clientCount={clientCount}
                   clientLimit={clientLimit}
+                  aiUsage={aiUsage}
                 />
               </CardContent>
             </Card>

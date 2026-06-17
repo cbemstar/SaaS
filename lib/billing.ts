@@ -9,21 +9,24 @@ export const pricingPlans = {
     amount: 14900,
     clientLimit: 5,
     clientLimitLabel: "Up to 5 clients",
-    features: ["All connectors", "Unlimited users", "2,000 AI credits/mo", "White-label PDF"],
+    aiCredits: 200,
+    features: ["All connectors", "Unlimited users", "200 AI credits/mo", "Bring your own AI key", "White-label PDF"],
   },
   Agency: {
     name: "Agency",
     amount: 49900,
     clientLimit: 25,
     clientLimitLabel: "Up to 25 clients",
-    features: ["Everything in Solo", "Scheduled reports", "Slack digest", "Priority support"],
+    aiCredits: 1000,
+    features: ["Everything in Solo", "1,000 AI credits/mo", "Scheduled reports", "Slack digest", "Priority support"],
   },
   Scale: {
     name: "Scale",
     amount: 89900,
     clientLimit: 100,
     clientLimitLabel: "50+ clients",
-    features: ["Everything in Agency", "SSO", "Custom domains", "API access"],
+    aiCredits: 5000,
+    features: ["Everything in Agency", "5,000 AI credits/mo", "SSO", "Custom domains", "API access"],
   },
 } as const;
 
@@ -31,6 +34,10 @@ export type PricingPlanName = keyof typeof pricingPlans;
 
 export function isPricingPlanName(value: string): value is PricingPlanName {
   return value in pricingPlans;
+}
+
+export function getAiCreditsForPlan(plan: PricingPlanName): number {
+  return pricingPlans[plan].aiCredits;
 }
 
 export async function getClientLimitForWorkspace(workspaceId: string) {

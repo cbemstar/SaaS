@@ -19,7 +19,8 @@ import { BrandMark } from "./brand-mark";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
-import { cn } from "@/lib/utils";
+import { cn, formatCompact } from "@/lib/utils";
+import type { AiUsage } from "@/lib/ai/usage";
 
 const sections: Array<{
   label: string;
@@ -57,7 +58,7 @@ function NavPending({ badge, active }: { badge?: string; active: boolean }) {
   return null;
 }
 
-export function AppSidebar() {
+export function AppSidebar({ aiUsage }: { aiUsage?: AiUsage | null }) {
   const pathname = usePathname();
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-border/80 bg-surface-2 lg:flex">
@@ -107,18 +108,31 @@ export function AppSidebar() {
         ))}
       </nav>
       <div className="space-y-2 border-t border-border/80 p-3">
-        <div className="rounded-lg border border-border/80 bg-card p-3.5">
+        <Link href="/settings?tab=ai" className="block rounded-lg border border-border/80 bg-card p-3.5 transition-colors hover:border-primary/40">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Sparkles className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold">AI credits</p>
-              <p className="font-mono text-2xs text-muted-foreground">2,840 / 5,000</p>
+              {aiUsage?.byok ? (
+                <p className="font-mono text-2xs text-muted-foreground">Your own API key</p>
+              ) : aiUsage ? (
+                <p className="font-mono text-2xs text-muted-foreground">
+                  {formatCompact(aiUsage.used)} / {formatCompact(aiUsage.limit)}
+                </p>
+              ) : (
+                <p className="font-mono text-2xs text-muted-foreground">—</p>
+              )}
             </div>
           </div>
-          <Progress value={57} className="mt-3 h-1" />
-        </div>
+          {!aiUsage?.byok && aiUsage && (
+            <Progress
+              value={aiUsage.limit > 0 ? Math.min(100, Math.round((aiUsage.used / aiUsage.limit) * 100)) : 0}
+              className="mt-3 h-1"
+            />
+          )}
+        </Link>
         <div className="flex gap-1 px-1 text-muted-foreground">
           <Link
             href="#"
