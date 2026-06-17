@@ -6,6 +6,7 @@ import { additiveKeys, type MetricSource, type SourceMetricsResult } from "@/lib
 import { writeBreakdowns, writeDailyMetrics } from "@/lib/metrics/store";
 import { fetchGoogleAdsDailyPerformance, fetchGoogleAdsMetrics } from "@/lib/connectors/google-ads";
 import { getGoogleAccessToken } from "@/lib/connectors/google-auth";
+import { readConnectorTokens } from "@/lib/connectors/store";
 import { fetchMetaDailyPerformance, fetchMetaMetrics, type PerformanceSeedRow } from "@/lib/connectors/meta";
 import { fetchLinkedInMetrics } from "@/lib/connectors/linkedin";
 import { fetchTikTokMetrics } from "@/lib/connectors/tiktok";
@@ -56,14 +57,7 @@ export async function pullLivePerformanceForClient(
 
   for (const channel of channels) {
     if (channel === "meta") {
-      const accessToken = (
-        await admin
-          .from("connector_tokens")
-          .select("access_token")
-          .eq("workspace_id", workspaceId)
-          .eq("channel", "meta")
-          .maybeSingle()
-      ).data?.access_token;
+      const accessToken = await getConnectorAccessToken(admin, workspaceId, "meta");
       const accountId = linkByChannel.get("meta");
       if (!accessToken || !accountId) continue;
       const rows = await fetchMetaDailyPerformance(accessToken, accountId);
@@ -185,13 +179,8 @@ async function getConnectorAccessToken(
   workspaceId: string,
   channel: ChannelKey,
 ): Promise<string | null> {
-  const { data } = await admin
-    .from("connector_tokens")
-    .select("access_token")
-    .eq("workspace_id", workspaceId)
-    .eq("channel", channel)
-    .maybeSingle();
-  return data?.access_token ?? null;
+  const { access_token } = await readConnectorTokens(admin, workspaceId, channel);
+  return access_token;
 }
 
 export async function syncMetaMetricsForClient(admin: AdminClient, workspaceId: string, clientId: string) {

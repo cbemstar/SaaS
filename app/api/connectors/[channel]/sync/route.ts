@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { channels, type ChannelKey } from "@/lib/catalog";
+import { isConnectorKey } from "@/lib/connectors";
 import { getConnectorRateLimitInfo } from "@/lib/connector-rate-limits";
 import { syncConnectorChannel } from "@/lib/connectors/sync-workspace";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -14,11 +15,11 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   const { channel: channelParam } = await context.params;
-  if (!(channelParam in channels)) {
+  if (!isConnectorKey(channelParam)) {
     return NextResponse.json({ error: "Unknown connector" }, { status: 404 });
   }
 
-  const channel = channelParam as ChannelKey;
+  const channel: ChannelKey = channelParam;
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return NextResponse.json({ error: "Database is not configured" }, { status: 503 });

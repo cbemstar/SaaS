@@ -39,3 +39,21 @@ export function decryptSecret(payload: string | null | undefined): string | null
     return null;
   }
 }
+
+const CIPHER_SHAPE = /^[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/;
+
+/**
+ * Decrypt a value that may be either ciphertext or legacy plaintext. Used for
+ * stored secrets written before encryption was enabled (e.g. existing connector
+ * tokens). Returns plaintext as-is; decrypts ciphertext; null if undecryptable.
+ */
+export function maybeDecryptSecret(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (!CIPHER_SHAPE.test(value)) return value; // legacy plaintext
+  return decryptSecret(value);
+}
+
+/** Encrypt if a secret is configured, otherwise return plaintext (degraded). */
+export function encryptSecretOrPlain(value: string): string {
+  return encryptSecret(value) ?? value;
+}

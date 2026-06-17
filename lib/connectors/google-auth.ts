@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ChannelKey } from "@/lib/catalog";
 import type { Database } from "@/lib/supabase/types";
-import { upsertConnectorToken } from "@/lib/connectors/store";
+import { readConnectorTokens, upsertConnectorToken } from "@/lib/connectors/store";
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -20,14 +20,9 @@ export async function getGoogleAccessToken(
     return null;
   }
 
-  const { data } = await admin
-    .from("connector_tokens")
-    .select("access_token, refresh_token, expires_at")
-    .eq("workspace_id", workspaceId)
-    .eq("channel", channel)
-    .maybeSingle();
+  const data = await readConnectorTokens(admin, workspaceId, channel);
 
-  if (!data?.access_token) {
+  if (!data.access_token) {
     return null;
   }
 

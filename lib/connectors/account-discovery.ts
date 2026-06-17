@@ -2,6 +2,7 @@ import type { ChannelKey } from "@/lib/catalog";
 import { listGa4Properties } from "@/lib/connectors/ga4";
 import { getGoogleAccessToken } from "@/lib/connectors/google-auth";
 import { listSearchConsoleSites } from "@/lib/connectors/search-console";
+import { readConnectorTokens } from "@/lib/connectors/store";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type DiscoveredAccount = {
@@ -12,15 +13,8 @@ export type DiscoveredAccount = {
 async function getConnectorToken(workspaceId: string, channel: ChannelKey) {
   const admin = createSupabaseAdminClient();
   if (!admin) return null;
-
-  const { data } = await admin
-    .from("connector_tokens")
-    .select("access_token")
-    .eq("workspace_id", workspaceId)
-    .eq("channel", channel)
-    .maybeSingle();
-
-  return data?.access_token ?? null;
+  const { access_token } = await readConnectorTokens(admin, workspaceId, channel);
+  return access_token;
 }
 
 async function listMetaAdAccounts(accessToken: string): Promise<DiscoveredAccount[]> {

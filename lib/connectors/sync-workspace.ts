@@ -4,7 +4,6 @@ import type { Database } from "@/lib/supabase/types";
 import { refreshClientMetricsFromPerformance } from "@/lib/clients";
 import { finishSyncRun, startSyncRun, type SyncRunStatus } from "@/lib/connector-sync-runs";
 import {
-  clearClientChannelMetrics,
   getConnectedChannelKeys,
   mergePerformanceSeedRow,
   purgeOrphanWorkspacePerformance,
@@ -38,10 +37,12 @@ async function upsertClientPerformance(
   fullSync: boolean,
 ) {
   const livePerformance = await pullLivePerformanceForClient(admin, workspaceId, clientId, syncedChannels);
+  // An empty/null pull is indistinguishable from a transient API error or an
+  // expired token (fetchers swallow errors and return null). Clearing here would
+  // wipe previously-synced data on any hiccup — so we skip and leave data intact.
+  // Deliberate removal is handled by disconnect/unmap/purge, not by an empty sync.
   if (!livePerformance?.length) {
-    await clearClientChannelMetrics(admin, workspaceId, clientId, syncedChannels);
-    await refreshClientMetricsFromPerformance(workspaceId, clientId);
-    return -1;
+    return 0;
   }
 
   const totalLiveSpend = livePerformance.reduce(
@@ -52,9 +53,9 @@ async function upsertClientPerformance(
   const totalLiveConversions = livePerformance.reduce((sum, day) => sum + day.conversions, 0);
 
   if (totalLiveSpend === 0 && totalLiveOrganic === 0 && totalLiveConversions === 0) {
-    await clearClientChannelMetrics(admin, workspaceId, clientId, syncedChannels);
-    await refreshClientMetricsFromPerformance(workspaceId, clientId);
-    return -1;
+    // Got a response but every metric is zero — could be a genuine no-activity
+    // period or a degraded response. Don't destroy existing data; skip.
+    return 0;
   }
 
   const dates = livePerformance.map((day) => day.date);
