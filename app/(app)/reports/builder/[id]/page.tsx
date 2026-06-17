@@ -21,14 +21,10 @@ export default async function ReportBuilderPage({ params }: { params: Promise<{ 
   const currency = workspace?.currency ?? "NZD";
 
   // Preview against the first client that has data, else the first client.
-  let previewClient = clients[0] ?? null;
-  for (const client of clients) {
-    const sources = await availableSources(workspaceId, { clientId: client.id });
-    if (sources.length) {
-      previewClient = client;
-      break;
-    }
-  }
+  const hasData = await Promise.all(
+    clients.map((c) => availableSources(workspaceId, { clientId: c.id }).then((s) => s.length > 0)),
+  );
+  const previewClient = clients[hasData.findIndex(Boolean)] ?? clients[0] ?? null;
 
   const reportData = previewClient
     ? await getReportData(workspaceId, previewClient.id, previewClient.name, currency)

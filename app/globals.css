@@ -191,4 +191,41 @@
   .stagger-3 { animation-delay: 140ms; }
   .stagger-4 { animation-delay: 210ms; }
   .stagger-5 { animation-delay: 280ms; }
+
+  /* Skeleton shimmer — a soft light sweep across placeholder surfaces. */
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background-color: hsl(var(--muted));
+  }
+  .skeleton-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, hsl(var(--foreground) / 0.06), transparent);
+    animation: skeleton-sweep 1.6s ease-in-out infinite;
+  }
+  @keyframes skeleton-sweep {
+    100% { transform: translateX(100%); }
+  }
+
+  /* Global top navigation progress bar. */
+  .nav-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    z-index: 100;
+    transform-origin: 0 50%;
+    background: linear-gradient(90deg, hsl(var(--primary) / 0.4), hsl(var(--primary)));
+    box-shadow: 0 0 8px hsl(var(--primary) / 0.5);
+    transition: transform 0.2s ease, opacity 0.3s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer::after { animation: none; }
+    .nav-progress { transition: opacity 0.2s ease; }
+  }
 }

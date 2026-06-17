@@ -43,15 +43,11 @@ export default async function ReportViewPage({ params, searchParams }: ViewPageP
 
   let client = clients.find((c) => c.id === sp.client) ?? null;
   if (!client) {
-    for (const candidate of clients) {
-      const sources = await availableSources(workspaceId, { clientId: candidate.id });
-      if (sources.length) {
-        client = candidate;
-        break;
-      }
-    }
+    const hasData = await Promise.all(
+      clients.map((c) => availableSources(workspaceId, { clientId: c.id }).then((s) => s.length > 0)),
+    );
+    client = clients[hasData.findIndex(Boolean)] ?? clients[0];
   }
-  client = client ?? clients[0];
 
   const reportData = await getReportData(workspaceId, client.id, client.name, currency, days);
   const accent = workspace?.accent_color ?? "#1f6f5c";

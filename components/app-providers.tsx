@@ -1,10 +1,12 @@
 "use client";
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { NavigationProgress } from "@/components/navigation-progress";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+      <NavigationProgress />
       {children}
     </ThemeProvider>
   );

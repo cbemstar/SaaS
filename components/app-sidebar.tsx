@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -9,6 +9,7 @@ import {
   HelpCircle,
   LayoutTemplate,
   LifeBuoy,
+  Loader2,
   Plug,
   Search,
   Settings,
@@ -42,6 +43,19 @@ const sections: Array<{
     ],
   },
 ];
+
+/** Shows a spinner while the link's destination is being fetched (Next 15 useLinkStatus). */
+function NavPending({ badge, active }: { badge?: string; active: boolean }) {
+  const { pending } = useLinkStatus();
+  if (pending) return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />;
+  if (badge)
+    return (
+      <Badge variant={active ? "soft" : "muted"} className="font-mono text-2xs">
+        {badge}
+      </Badge>
+    );
+  return null;
+}
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -84,11 +98,7 @@ export function AppSidebar() {
                       <Icon className={cn("h-4 w-4", active && "text-primary")} />
                       {item.label}
                     </span>
-                    {item.badge && (
-                      <Badge variant={active ? "soft" : "muted"} className="font-mono text-2xs">
-                        {item.badge}
-                      </Badge>
-                    )}
+                    <NavPending badge={item.badge} active={active} />
                   </Link>
                 );
               })}
