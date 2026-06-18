@@ -152,6 +152,16 @@ export function CommandMenu() {
               </Command.Group>
             )}
           </Command.List>
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-2xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Sparkles className="h-3 w-3 text-primary" /> Kōrero command menu
+            </span>
+            <span className="flex items-center gap-2">
+              <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono">↑↓</kbd> navigate
+              <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono">↵</kbd> select
+              <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono">esc</kbd> close
+            </span>
+          </div>
         </Command>
       </DialogContent>
     </Dialog>
