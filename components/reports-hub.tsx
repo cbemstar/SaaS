@@ -46,7 +46,7 @@ export function ReportsHub({
   const previewHref = hasTargets ? `/reports/view/${templateId}?client=${clientId}` : "#";
 
   return (
-    <main className="flex-1 space-y-6 p-4 lg:p-6">
+    <main className="flex-1 animate-fade-up space-y-6 p-4 lg:p-6">
       {/* Send a report */}
       <Card>
         <CardHeader>

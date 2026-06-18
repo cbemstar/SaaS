@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <WorkspaceBootstrap />
       <CommandMenu />
       <AppSidebar aiUsage={aiUsage} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">{children}</div>
+      <div data-app-scroll className="flex min-w-0 flex-1 flex-col overflow-y-auto">{children}</div>
     </div>
   );
 }

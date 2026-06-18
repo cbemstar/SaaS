@@ -92,7 +92,7 @@ function AiCreditsCard({ initial }: { initial?: AiUsage | null }) {
   return (
     <Link
       href="/settings?tab=ai"
-      className="ai-surface block rounded-lg border bg-card p-3.5 transition-colors hover:border-primary/50"
+      className="ai-surface ai-pulse block rounded-lg border bg-card p-3.5 transition-colors hover:border-primary/50"
     >
       <div className="flex items-center gap-2.5">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">

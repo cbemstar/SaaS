@@ -245,7 +245,7 @@ export function DashboardContent({
           </div>
 
           {hasPaidData && (
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="stagger-2 grid animate-fade-up gap-4 lg:grid-cols-3">
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle>Spend by channel</CardTitle>
@@ -363,7 +363,7 @@ export function DashboardContent({
         </Card>
       ))}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="stagger-3 grid animate-fade-up gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div className="flex items-center gap-2">

@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, ChevronDown, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileNav } from "./mobile-nav";
@@ -28,9 +30,25 @@ export function Topbar({ title, subtitle, workspaceName, userEmail, userInitials
   const workspaceInitials = workspaceName?.slice(0, 2).toUpperCase() ?? "WS";
   const accountInitials = userInitials ?? userEmail?.slice(0, 1).toUpperCase() ?? "U";
   const displayName = userEmail?.split("@")[0] ?? "Account";
+  const [scrolled, setScrolled] = useState(false);
+
+  // Separate the top bar from content with a hairline shadow once you scroll.
+  useEffect(() => {
+    const scroller = document.querySelector<HTMLElement>("[data-app-scroll]");
+    if (!scroller) return;
+    const onScroll = () => setScrolled(scroller.scrollTop > 4);
+    onScroll();
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b bg-background/90 px-4 backdrop-blur-md lg:px-6">
+    <header
+      className={cn(
+        "sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b px-4 backdrop-blur-md transition-shadow duration-200 lg:px-6",
+        scrolled ? "border-border bg-background/95 shadow-[0_1px_0_hsl(var(--border)),0_6px_16px_-12px_hsl(0_0%_0%/0.5)]" : "border-transparent bg-background/80",
+      )}
+    >
       <div className="flex min-w-0 items-center gap-2">
         <MobileNav />
         <DropdownMenu>
