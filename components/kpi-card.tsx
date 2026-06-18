@@ -21,7 +21,7 @@ export function KpiCard({
 }) {
   const positive = invertDelta ? delta < 0 : delta > 0;
   return (
-    <Card className="group border-border/70 p-5 transition-colors hover:border-border">
+    <Card className="group border-border/70 p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-panel-lg">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="type-label">{label}</p>

@@ -186,7 +186,7 @@ export function DashboardContent({
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid animate-fade-up gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {hasPaidData && (
               <KpiCard
                 label="Total spend"
@@ -309,7 +309,7 @@ export function DashboardContent({
                     </thead>
                     <tbody>
                       {sourceBreakdown.map((row) => (
-                        <tr key={row.channel} className="border-b border-border/50 last:border-0">
+                        <tr key={row.channel} className="border-b border-border/50 transition-colors last:border-0 hover:bg-accent/40">
                           <td className="py-2.5 pr-4">
                             <span className="inline-flex items-center gap-2">
                               <span
@@ -324,7 +324,7 @@ export function DashboardContent({
                         </tr>
                       ))}
                       {organicBreakdown.map((row) => (
-                        <tr key={row.channel} className="border-b border-border/50 last:border-0">
+                        <tr key={row.channel} className="border-b border-border/50 transition-colors last:border-0 hover:bg-accent/40">
                           <td className="py-2.5 pr-4">
                             <span className="inline-flex items-center gap-2">
                               <span
@@ -409,7 +409,7 @@ export function DashboardContent({
                 <Link
                   key={client.id}
                   href={`/clients/${client.id}`}
-                  className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 hover:opacity-80"
+                  className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-accent/50"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <Avatar className="h-8 w-8">

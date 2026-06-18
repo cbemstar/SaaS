@@ -8,21 +8,22 @@
  */
 @layer base {
   :root {
-    --background: 0 0% 99%;
-    --foreground: 0 0% 11%;
+    /* Light: white surfaces with a faint cool tint on neutrals for cohesion. */
+    --background: 210 20% 99%;
+    --foreground: 220 14% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 11%;
+    --card-foreground: 220 14% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 11%;
+    --popover-foreground: 220 14% 11%;
 
     --primary: 153 55% 40%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 11%;
+    --secondary: 210 17% 96%;
+    --secondary-foreground: 220 14% 11%;
 
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 210 17% 96%;
+    --muted-foreground: 215 12% 40%;
 
     --accent: 153 35% 94%;
     --accent-foreground: 153 55% 28%;
@@ -36,11 +37,12 @@
     --warning: 38 92% 50%;
     --warning-foreground: 38 80% 12%;
 
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
+    --border: 220 14% 91%;
+    --input: 220 14% 91%;
     --ring: 153 55% 40%;
 
     --radius: 0.625rem;
+    --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
 
     --chart-1: 153 55% 40%;
     --chart-2: 0 0% 45%;
@@ -49,52 +51,53 @@
     --chart-5: 12 70% 55%;
 
     --surface-1: 0 0% 100%;
-    --surface-2: 0 0% 97%;
+    --surface-2: 210 20% 97%;
     --glow: 153 55% 40%;
   }
 
   .dark {
-    --background: 0 0% 7%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 98%;
+    /* Dark: cool desaturated slate neutrals (not flat gray) + emerald accent. */
+    --background: 222 16% 6%;
+    --foreground: 210 16% 98%;
+    --card: 220 13% 9%;
+    --card-foreground: 210 16% 98%;
+    --popover: 220 13% 10%;
+    --popover-foreground: 210 16% 98%;
 
-    --primary: 153 60% 48%;
+    --primary: 153 62% 49%;
     --primary-foreground: 0 0% 7%;
 
-    --secondary: 0 0% 13%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 220 11% 14%;
+    --secondary-foreground: 210 16% 98%;
 
-    --muted: 0 0% 13%;
-    --muted-foreground: 0 0% 58%;
+    --muted: 220 11% 14%;
+    --muted-foreground: 218 10% 63%;
 
-    --accent: 0 0% 14%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 220 11% 16%;
+    --accent-foreground: 210 16% 98%;
 
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 98%;
 
-    --success: 153 60% 48%;
+    --success: 153 62% 49%;
     --success-foreground: 0 0% 7%;
 
     --warning: 38 90% 55%;
     --warning-foreground: 0 0% 7%;
 
-    --border: 0 0% 16%;
-    --input: 0 0% 16%;
-    --ring: 153 60% 48%;
+    --border: 220 10% 18%;
+    --input: 220 10% 18%;
+    --ring: 153 62% 49%;
 
-    --chart-1: 153 60% 48%;
-    --chart-2: 0 0% 55%;
+    --chart-1: 153 62% 49%;
+    --chart-2: 218 10% 60%;
     --chart-3: 38 85% 58%;
     --chart-4: 199 65% 55%;
     --chart-5: 12 65% 58%;
 
-    --surface-1: 0 0% 10%;
-    --surface-2: 0 0% 8%;
-    --glow: 153 60% 48%;
+    --surface-1: 220 13% 9%;
+    --surface-2: 222 15% 7%;
+    --glow: 153 62% 49%;
   }
 }
 
@@ -224,8 +227,42 @@
     transition: transform 0.2s ease, opacity 0.3s ease;
   }
 
+  /* Ambient emerald glow for hero/empty/header zones — ties the accent into depth. */
+  .ambient-glow {
+    position: relative;
+    isolation: isolate;
+  }
+  .ambient-glow::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(60% 120% at 12% -10%, hsl(var(--glow) / 0.12), transparent 60%),
+      radial-gradient(50% 120% at 95% 0%, hsl(var(--glow) / 0.06), transparent 55%);
+  }
+
+  /* AI-forward surfaces: a soft animated emerald aura + tinted border. */
+  .ai-surface {
+    border-color: hsl(var(--primary) / 0.25);
+    background-image:
+      radial-gradient(120% 140% at 100% 0%, hsl(var(--glow) / 0.08), transparent 55%);
+  }
+  .ai-glow {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.2), 0 0 28px -8px hsl(var(--glow) / 0.45);
+  }
+  .ai-pulse {
+    animation: ai-pulse 4.5s ease-in-out infinite;
+  }
+  @keyframes ai-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px hsl(var(--primary) / 0.18), 0 0 22px -10px hsl(var(--glow) / 0.35); }
+    50% { box-shadow: 0 0 0 1px hsl(var(--primary) / 0.3), 0 0 34px -8px hsl(var(--glow) / 0.55); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .skeleton-shimmer::after { animation: none; }
     .nav-progress { transition: opacity 0.2s ease; }
+    .ai-pulse { animation: none; }
   }
 }

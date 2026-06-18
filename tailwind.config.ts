@@ -78,8 +78,10 @@ const config: Config = {
       boxShadow: {
         glow: "0 0 48px -10px hsl(var(--glow) / 0.35)",
         "glow-sm": "0 0 20px -6px hsl(var(--glow) / 0.22)",
-        panel: "0 1px 2px hsl(0 0% 0% / 0.04), 0 4px 16px -4px hsl(0 0% 0% / 0.08)",
-        "panel-lg": "0 2px 4px hsl(0 0% 0% / 0.05), 0 16px 40px -12px hsl(0 0% 0% / 0.14)",
+        panel:
+          "0 1px 2px hsl(0 0% 0% / 0.04), 0 4px 16px -4px hsl(0 0% 0% / 0.08), inset 0 1px 0 hsl(0 0% 100% / 0.04)",
+        "panel-lg":
+          "0 2px 4px hsl(0 0% 0% / 0.05), 0 16px 40px -12px hsl(0 0% 0% / 0.14), inset 0 1px 0 hsl(0 0% 100% / 0.05)",
       },
       keyframes: {
         "accordion-down": {

@@ -93,7 +93,7 @@ export default async function DashboardPage() {
         )}
 
         {workspaceId && overviewSources.length === 0 && (
-          <section className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card p-12 text-center">
+          <section className="ambient-glow flex flex-col items-center gap-3 overflow-hidden rounded-xl border border-dashed bg-card p-12 text-center">
             <h2 className="font-display text-lg font-semibold">No analytics data yet</h2>
             <p className="max-w-md text-sm text-muted-foreground">
               Connect a source (GA4, Search Console, Google Ads, Meta, LinkedIn, TikTok) and run a sync — or
