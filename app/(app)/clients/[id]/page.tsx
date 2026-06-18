@@ -65,7 +65,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               </Link>
             </Button>
             <Button asChild size="sm" className="gap-1.5">
-              <Link href={`/reports?client=${client.id}&tab=builder`}>
+              <Link href={`/reports?client=${client.id}`}>
                 <Send className="h-3.5 w-3.5" /> Send report
               </Link>
             </Button>

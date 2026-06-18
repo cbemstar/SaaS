@@ -17,7 +17,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { BrandMark } from "./brand-mark";
-import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Progress } from "./ui/progress";
 import { cn, formatCompact } from "@/lib/utils";
@@ -119,6 +118,14 @@ function AiCreditsCard({ initial }: { initial?: AiUsage | null }) {
 
 export function AppSidebar({ aiUsage }: { aiUsage?: AiUsage | null }) {
   const pathname = usePathname();
+
+  // Most-specific match wins, so /reports/builder highlights only "Report builder"
+  // and not also its prefix sibling "Reports".
+  const allHrefs = sections.flatMap((s) => s.items.map((i) => i.href));
+  const matches = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = (href: string) =>
+    matches(href) && !allHrefs.some((other) => other.length > href.length && matches(other));
+
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-border/80 bg-surface-2 lg:flex">
       <div className="flex h-14 items-center border-b border-border/80 px-4">
@@ -127,13 +134,17 @@ export function AppSidebar({ aiUsage }: { aiUsage?: AiUsage | null }) {
         </Link>
       </div>
       <div className="px-3 pt-4">
-        <div className="relative">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("open-command-menu"))}
+          className="group relative flex h-9 w-full items-center rounded-md border border-border/80 bg-background pl-9 pr-2 text-left text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+        >
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search clients, reports…" className="h-9 border-border/80 bg-background pl-9" />
+          Search or jump to…
           <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-2xs text-muted-foreground">
             ⌘K
           </kbd>
-        </div>
+        </button>
       </div>
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5 scrollbar-thin">
         {sections.map((section) => (
@@ -141,7 +152,7 @@ export function AppSidebar({ aiUsage }: { aiUsage?: AiUsage | null }) {
             <p className="type-label mb-2 px-2">{section.label}</p>
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const active = isActive(item.href);
                 const Icon = item.icon;
                 return (
                   <Link

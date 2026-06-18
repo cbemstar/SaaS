@@ -152,7 +152,7 @@ export function ScheduledReportsPanel({ schedules, clients, templates, workspace
   if (templates.length === 0) {
     return (
       <CardPlaceholder>
-        Create a report template in Settings before scheduling delivery.
+        Create a report template in the Report builder before scheduling delivery.
       </CardPlaceholder>
     );
   }

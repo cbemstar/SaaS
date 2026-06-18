@@ -6,7 +6,6 @@ import { AiProviderForm } from "@/components/settings/ai-provider-form";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { TeamPanel } from "@/components/settings/team-panel";
 import { DataPanel } from "@/components/settings/data-panel";
-import { TemplatesManager } from "@/components/settings/templates-manager";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -15,7 +14,6 @@ import {
   pricingPlans,
   type PricingPlanName,
 } from "@/lib/billing";
-import { getReportTemplates } from "@/lib/data";
 import { canManageTeam, getMemberRole, listPendingInvites, listTeamMembers } from "@/lib/team";
 import { getActiveWorkspace, getActiveWorkspaceId, getAuthenticatedUser, getClientCount } from "@/lib/workspace";
 import { getAiUsage } from "@/lib/ai/usage";
@@ -35,10 +33,9 @@ const planCards = (Object.values(pricingPlans) as (typeof pricingPlans)[PricingP
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const params = await searchParams;
-  const [workspace, workspaceId, templates, user] = await Promise.all([
+  const [workspace, workspaceId, user] = await Promise.all([
     getActiveWorkspace(),
     getActiveWorkspaceId(),
-    getReportTemplates(),
     getAuthenticatedUser(),
   ]);
 
@@ -69,7 +66,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             <TabsTrigger value="workspace">Workspace</TabsTrigger>
             <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="ai">AI engine</TabsTrigger>
-            <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
             <TabsTrigger value="billing">Billing</TabsTrigger>
@@ -145,18 +141,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 ) : (
                   <p className="text-sm text-muted-foreground">Sign in to manage AI settings.</p>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="templates">
-            <Card>
-              <CardHeader>
-                <CardTitle>Report templates</CardTitle>
-                <CardDescription>Build and manage reusable report layouts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TemplatesManager initialTemplates={templates} />
               </CardContent>
             </Card>
           </TabsContent>

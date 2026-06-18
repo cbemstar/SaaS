@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { WorkspaceBootstrap } from "@/components/workspace-bootstrap";
+import { CommandMenu } from "@/components/command-menu";
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
 import { getAiUsage } from "@/lib/ai/usage";
 
@@ -11,6 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-dvh overflow-hidden bg-background">
       <WorkspaceBootstrap />
+      <CommandMenu />
       <AppSidebar aiUsage={aiUsage} />
       <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">{children}</div>
     </div>

@@ -66,7 +66,7 @@ export function Topbar({ title, subtitle, workspaceName, userEmail, userInitials
           <h1 className="truncate text-sm font-semibold">{title}</h1>
         </div>
         <Button asChild size="sm" variant="outline" className="hidden gap-1.5 md:inline-flex">
-          <Link href="/reports">
+          <Link href="/reports/builder">
             <Plus className="h-3.5 w-3.5" /> New report
           </Link>
         </Button>

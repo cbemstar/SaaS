@@ -61,7 +61,7 @@ export function DeliveryHistoryPanel({ deliveries, clients }: DeliveryHistoryPan
                 <p className="mt-1 text-xs text-destructive">{delivery.errorMessage}</p>
               )}
             </div>
-            {delivery.status === "sent" && (
+            {delivery.status === "sent" && delivery.blocks.length > 0 && (
               <Button asChild size="sm" variant="outline">
                 <Link
                   href={`/api/reports/pdf?clientId=${delivery.clientId}&blocks=${blocksParam}`}
