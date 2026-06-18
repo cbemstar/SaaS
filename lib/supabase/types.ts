@@ -146,11 +146,14 @@ export type StripeCustomerRow = {
   stripe_subscription_id: string | null;
   plan: string | null;
   status: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
   created_at: string;
   updated_at: string;
 };
 
-export type StripeCustomerInsert = Omit<StripeCustomerRow, "id" | "created_at" | "updated_at"> & { id?: string };
+export type StripeCustomerInsert = Pick<StripeCustomerRow, "workspace_id" | "stripe_customer_id"> &
+  Partial<Omit<StripeCustomerRow, "workspace_id" | "stripe_customer_id" | "id" | "created_at">>;
 
 export type WorkspaceRow = {
   id: string;

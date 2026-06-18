@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import type { PricingPlanName } from "@/lib/billing";
+import type { PaidPlanName } from "@/lib/billing";
 
 type SettingsCheckoutButtonProps = {
-  plan: PricingPlanName;
+  plan: PaidPlanName;
+  interval?: "month" | "year";
   label?: string;
   className?: string;
   variant?: "default" | "outline";
@@ -13,6 +15,7 @@ type SettingsCheckoutButtonProps = {
 
 export function SettingsCheckoutButton({
   plan,
+  interval = "month",
   label = "Change plan",
   className,
   variant = "outline",
@@ -21,22 +24,19 @@ export function SettingsCheckoutButton({
 
   async function startCheckout() {
     setLoading(true);
-
     try {
       const response = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, interval }),
       });
-
-      const payload = (await response.json()) as { checkoutUrl?: string; error?: string };
+      const payload = (await response.json().catch(() => ({}))) as { checkoutUrl?: string; error?: string };
       if (!response.ok || !payload.checkoutUrl) {
         throw new Error(payload.error ?? "Could not start checkout");
       }
-
       window.location.href = payload.checkoutUrl;
     } catch (error) {
-      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Could not start checkout");
       setLoading(false);
     }
   }

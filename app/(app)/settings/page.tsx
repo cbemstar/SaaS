@@ -11,7 +11,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   getClientLimitForWorkspace,
   getWorkspacePlanName,
+  getWorkspaceSubscription,
   pricingPlans,
+  PAID_PLANS,
   type PricingPlanName,
 } from "@/lib/billing";
 import { canManageTeam, getMemberRole, listPendingInvites, listTeamMembers } from "@/lib/team";
@@ -23,13 +25,16 @@ type SettingsPageProps = {
   searchParams: Promise<{ tab?: string; checkout?: string }>;
 };
 
-const planCards = (Object.values(pricingPlans) as (typeof pricingPlans)[PricingPlanName][]).map((plan) => ({
-  name: plan.name,
-  monthly: plan.amount / 100,
-  clientLimitLabel: plan.clientLimitLabel,
-  features: plan.features,
-  highlight: plan.name === "Agency",
-}));
+const planCards = PAID_PLANS.map((name) => {
+  const plan = pricingPlans[name];
+  return {
+    name,
+    monthly: plan.amount / 100,
+    clientLimitLabel: plan.clientLimitLabel,
+    features: plan.features,
+    highlight: name === "Agency",
+  };
+});
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const params = await searchParams;
@@ -47,8 +52,18 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   const clientCount = workspaceId ? await getClientCount(workspaceId) : 0;
   const clientLimit = workspaceId
     ? await getClientLimitForWorkspace(workspaceId)
-    : pricingPlans.Solo.clientLimit;
-  const currentPlan: PricingPlanName = workspaceId ? await getWorkspacePlanName(workspaceId) : "Solo";
+    : pricingPlans.Free.clientLimit;
+  const currentPlan: PricingPlanName = workspaceId ? await getWorkspacePlanName(workspaceId) : "Free";
+  const subscriptionRow = workspaceId ? await getWorkspaceSubscription(workspaceId) : null;
+  const subscription = subscriptionRow
+    ? {
+        status: subscriptionRow.status,
+        currentPeriodEnd: subscriptionRow.current_period_end,
+        cancelAtPeriodEnd: subscriptionRow.cancel_at_period_end,
+        hasCustomer: Boolean(subscriptionRow.stripe_customer_id),
+      }
+    : null;
+  const canManageBilling = canManageTeam(memberRole);
   const aiUsage = workspaceId ? await getAiUsage(workspaceId, workspace) : null;
   const encryptionConfigured = isEncryptionConfigured();
 
@@ -187,6 +202,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                   clientCount={clientCount}
                   clientLimit={clientLimit}
                   aiUsage={aiUsage}
+                  subscription={subscription}
+                  canManage={canManageBilling}
                 />
               </CardContent>
             </Card>

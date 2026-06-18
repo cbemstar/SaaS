@@ -1,57 +1,88 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { createStripeClient, getCheckoutUrls, isPricingPlanName, pricingPlans } from "@/lib/billing";
-import { requireWorkspaceId } from "@/lib/workspace";
+import {
+  annualAmount,
+  createStripeClient,
+  getCheckoutUrls,
+  getWorkspaceSubscription,
+  isPaidPlanName,
+  pricingPlans,
+} from "@/lib/billing";
+import { canManageTeam, getMemberRole } from "@/lib/team";
+import { getAuthenticatedUser, requireWorkspaceId } from "@/lib/workspace";
 
 const checkoutSchema = z.object({
   plan: z.string(),
-  email: z.string().email().optional(),
+  interval: z.enum(["month", "year"]).optional().default("month"),
 });
 
 export async function POST(request: NextRequest) {
-  const payload = checkoutSchema.parse(await request.json());
   const workspaceId = await requireWorkspaceId();
-
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!isPricingPlanName(payload.plan)) {
+  // Billing is an owner/admin action.
+  const user = await getAuthenticatedUser();
+  const role = user ? await getMemberRole(workspaceId, user.id) : null;
+  if (!canManageTeam(role)) {
+    return NextResponse.json({ error: "Only workspace owners or admins can manage billing." }, { status: 403 });
+  }
+
+  let payload: z.infer<typeof checkoutSchema>;
+  try {
+    payload = checkoutSchema.parse(await request.json());
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  if (!isPaidPlanName(payload.plan)) {
     return NextResponse.json({ error: "Unsupported plan" }, { status: 400 });
   }
 
   const stripe = createStripeClient();
-  const plan = pricingPlans[payload.plan];
-
   if (!stripe) {
     return NextResponse.json({ error: "Stripe is not configured" }, { status: 503 });
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer_email: payload.email,
-    metadata: {
-      workspace_id: workspaceId,
-      plan: payload.plan,
-    },
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: "nzd",
-          recurring: {
-            interval: "month",
-          },
-          product_data: {
-            name: `Kōrero ${plan.name}`,
-            description: plan.clientLimitLabel,
-          },
-          unit_amount: plan.amount,
-        },
-      },
-    ],
-    ...getCheckoutUrls(),
-  });
+  const plan = pricingPlans[payload.plan];
+  const annual = payload.interval === "year";
+  const existing = await getWorkspaceSubscription(workspaceId);
 
-  return NextResponse.json({ mode: "stripe", checkoutUrl: session.url });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      // Reuse the workspace's Stripe customer if we have one; otherwise
+      // subscription mode auto-creates one, seeded with the user's email.
+      ...(existing?.stripe_customer_id
+        ? { customer: existing.stripe_customer_id }
+        : { customer_email: user?.email ?? undefined }),
+      allow_promotion_codes: true,
+      billing_address_collection: "auto",
+      metadata: { workspace_id: workspaceId, plan: payload.plan },
+      subscription_data: {
+        metadata: { workspace_id: workspaceId, plan: payload.plan },
+      },
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "nzd",
+            recurring: { interval: annual ? "year" : "month" },
+            product_data: {
+              name: `Kōrero ${plan.name}`,
+              description: plan.clientLimitLabel,
+            },
+            unit_amount: annual ? annualAmount(payload.plan) : plan.amount,
+          },
+        },
+      ],
+      ...getCheckoutUrls(),
+    });
+
+    return NextResponse.json({ mode: "stripe", checkoutUrl: session.url });
+  } catch (error) {
+    console.error("Stripe checkout session failed", error);
+    return NextResponse.json({ error: "Could not start checkout" }, { status: 500 });
+  }
 }

@@ -2,8 +2,18 @@ import Stripe from "stripe";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { connectorCatalog as defaultConnectors, reportTemplates as defaultTemplates } from "@/lib/mock-data";
 import { appUrl, stripeSecretKey } from "@/lib/env";
+import type { StripeCustomerRow } from "@/lib/supabase/types";
 
 export const pricingPlans = {
+  // Default for every workspace without an active subscription.
+  Free: {
+    name: "Free",
+    amount: 0,
+    clientLimit: 1,
+    clientLimitLabel: "1 client",
+    aiCredits: 25,
+    features: ["1 client", "All connectors", "25 AI credits/mo", "Bring your own AI key"],
+  },
   Solo: {
     name: "Solo",
     amount: 14900,
@@ -32,52 +42,56 @@ export const pricingPlans = {
 
 export type PricingPlanName = keyof typeof pricingPlans;
 
+/** Purchasable plans (Free is the default, not a checkout target). */
+export const PAID_PLANS = ["Solo", "Agency", "Scale"] as const;
+export type PaidPlanName = (typeof PAID_PLANS)[number];
+
+/** Subscription statuses that still grant the paid plan (incl. grace period). */
+const ENTITLED_STATUSES = new Set(["active", "trialing", "past_due"]);
+
 export function isPricingPlanName(value: string): value is PricingPlanName {
   return value in pricingPlans;
+}
+
+export function isPaidPlanName(value: string): value is PaidPlanName {
+  return (PAID_PLANS as readonly string[]).includes(value);
 }
 
 export function getAiCreditsForPlan(plan: PricingPlanName): number {
   return pricingPlans[plan].aiCredits;
 }
 
-export async function getClientLimitForWorkspace(workspaceId: string) {
-  const admin = createSupabaseAdminClient();
-  if (!admin) {
-    return pricingPlans.Solo.clientLimit;
-  }
-
-  const { data } = await admin
-    .from("stripe_customers")
-    .select("plan")
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
-
-  const planName = data?.plan;
-  if (planName && isPricingPlanName(planName)) {
-    return pricingPlans[planName].clientLimit;
-  }
-
-  return pricingPlans.Solo.clientLimit;
+/** Annual price = 10 months (2 months free) of the monthly amount. */
+export function annualAmount(plan: PaidPlanName): number {
+  return pricingPlans[plan].amount * 10;
 }
 
-export async function getWorkspacePlanName(workspaceId: string): Promise<PricingPlanName> {
+export async function getWorkspaceSubscription(workspaceId: string): Promise<StripeCustomerRow | null> {
   const admin = createSupabaseAdminClient();
-  if (!admin) {
-    return "Solo";
-  }
-
+  if (!admin) return null;
   const { data } = await admin
     .from("stripe_customers")
-    .select("plan")
+    .select("*")
     .eq("workspace_id", workspaceId)
     .maybeSingle();
+  return data ?? null;
+}
 
-  const planName = data?.plan;
-  if (planName && isPricingPlanName(planName)) {
-    return planName;
+/**
+ * The workspace's effective plan. A paid plan only applies while the
+ * subscription is in an entitled state; otherwise the workspace is Free.
+ */
+export async function getWorkspacePlanName(workspaceId: string): Promise<PricingPlanName> {
+  const sub = await getWorkspaceSubscription(workspaceId);
+  if (sub?.plan && isPaidPlanName(sub.plan) && sub.status && ENTITLED_STATUSES.has(sub.status)) {
+    return sub.plan;
   }
+  return "Free";
+}
 
-  return "Solo";
+export async function getClientLimitForWorkspace(workspaceId: string) {
+  const plan = await getWorkspacePlanName(workspaceId);
+  return pricingPlans[plan].clientLimit;
 }
 
 export function createStripeClient() {
@@ -92,9 +106,13 @@ export function createStripeClient() {
 
 export function getCheckoutUrls() {
   return {
-    success_url: `${appUrl}/settings?checkout=success`,
-    cancel_url: `${appUrl}/#pricing`,
+    success_url: `${appUrl}/settings?tab=billing&checkout=success`,
+    cancel_url: `${appUrl}/settings?tab=billing&checkout=cancelled`,
   };
+}
+
+export function getBillingReturnUrl() {
+  return `${appUrl}/settings?tab=billing`;
 }
 
 
