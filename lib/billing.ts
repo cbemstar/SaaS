@@ -66,6 +66,21 @@ export function annualAmount(plan: PaidPlanName): number {
   return pricingPlans[plan].amount * 10;
 }
 
+/**
+ * Live Stripe Price IDs for each paid plan + interval (account calchub.tech).
+ * Checkout uses these; if one is missing it falls back to inline price_data so
+ * the flow still works against a different/test account.
+ */
+export const STRIPE_PRICE_IDS: Record<PaidPlanName, { month: string; year: string }> = {
+  Solo: { month: "price_1TlijrBcmaVSn6Z1A1sAHepF", year: "price_1TlikMBcmaVSn6Z1WkklTvOr" },
+  Agency: { month: "price_1Tlik2BcmaVSn6Z10po2kHZY", year: "price_1TlikOBcmaVSn6Z1RMaCm9cn" },
+  Scale: { month: "price_1Tlik4BcmaVSn6Z1wcvymBbT", year: "price_1TlikPBcmaVSn6Z1Yirac9XB" },
+};
+
+export function getStripePriceId(plan: PaidPlanName, interval: "month" | "year"): string | null {
+  return STRIPE_PRICE_IDS[plan]?.[interval] ?? null;
+}
+
 export async function getWorkspaceSubscription(workspaceId: string): Promise<StripeCustomerRow | null> {
   const admin = createSupabaseAdminClient();
   if (!admin) return null;

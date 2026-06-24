@@ -41,12 +41,17 @@ async function syncSubscription(admin: AdminClient, sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   if (!customerId) return;
 
+  // Prefer the plan tagged on the active price (survives portal plan switches),
+  // then the subscription metadata set at checkout.
+  const pricePlan = sub.items?.data?.[0]?.price?.metadata?.plan;
+  const plan = pricePlan || sub.metadata?.plan || null;
+
   const { error } = await admin.from("stripe_customers").upsert(
     {
       workspace_id: workspaceId,
       stripe_customer_id: customerId,
       stripe_subscription_id: sub.id,
-      plan: sub.metadata?.plan ?? null,
+      plan,
       status: sub.status,
       current_period_end: periodEndIso(sub),
       cancel_at_period_end: sub.cancel_at_period_end ?? false,

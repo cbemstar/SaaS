@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import type Stripe from "stripe";
 import {
   annualAmount,
   createStripeClient,
   getCheckoutUrls,
+  getStripePriceId,
   getWorkspaceSubscription,
   isPaidPlanName,
   pricingPlans,
@@ -49,6 +51,21 @@ export async function POST(request: NextRequest) {
   const annual = payload.interval === "year";
   const existing = await getWorkspaceSubscription(workspaceId);
 
+  // Prefer the real Stripe Price; fall back to an inline price if it's not set
+  // up on this account (e.g. a test environment).
+  const priceId = getStripePriceId(payload.plan, payload.interval);
+  const lineItem: Stripe.Checkout.SessionCreateParams.LineItem = priceId
+    ? { price: priceId, quantity: 1 }
+    : {
+        quantity: 1,
+        price_data: {
+          currency: "nzd",
+          recurring: { interval: annual ? "year" : "month" },
+          product_data: { name: `Kōrero ${plan.name}`, description: plan.clientLimitLabel },
+          unit_amount: annual ? annualAmount(payload.plan) : plan.amount,
+        },
+      };
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -63,20 +80,7 @@ export async function POST(request: NextRequest) {
       subscription_data: {
         metadata: { workspace_id: workspaceId, plan: payload.plan },
       },
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: "nzd",
-            recurring: { interval: annual ? "year" : "month" },
-            product_data: {
-              name: `Kōrero ${plan.name}`,
-              description: plan.clientLimitLabel,
-            },
-            unit_amount: annual ? annualAmount(payload.plan) : plan.amount,
-          },
-        },
-      ],
+      line_items: [lineItem],
       ...getCheckoutUrls(),
     });
 
