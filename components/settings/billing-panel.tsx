@@ -162,7 +162,7 @@ export function BillingPanel({
         >
           <span
             className={cn(
-              "pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow ring-0 transition-transform",
+              "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-transform",
               annual ? "translate-x-[22px]" : "translate-x-0.5",
             )}
           />
