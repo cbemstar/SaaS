@@ -14,7 +14,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <WorkspaceBootstrap />
       <CommandMenu />
       <AppSidebar aiUsage={aiUsage} />
-      <div data-app-scroll className="flex min-w-0 flex-1 flex-col overflow-y-auto">{children}</div>
+      {/* scrollbar-gutter: stable reserves the scrollbar's space on every page so the
+          sticky topbar + content keep identical width/padding whether or not a page is
+          tall enough to scroll (otherwise short pages render ~15px wider than tall ones). */}
+      <div
+        data-app-scroll
+        className="flex min-w-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]"
+      >
+        {children}
+      </div>
     </div>
   );
 }
