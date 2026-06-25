@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowRight, Building2, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,15 +10,33 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DashboardDataBanner } from "@/components/dashboard-data-banner";
 import { InsightCard } from "@/components/insight-card";
-import { PerformanceChart } from "@/components/performance-chart";
-import { ConversionsChart } from "@/components/conversions-chart";
-import { ChannelMix } from "@/components/channel-mix";
 import { KpiCard } from "@/components/kpi-card";
 import { AddClientDialog } from "@/components/add-client-dialog";
 import type { ChannelKey, Client, DailyPerformancePoint, Insight } from "@/lib/catalog";
 import { channels } from "@/lib/catalog";
 import type { ConnectorCatalogItem } from "@/lib/data";
-import { OrganicMetricsChart } from "@/components/organic-metrics-chart";
+
+// Charts are recharts-backed; load them lazily after mount so recharts stays out
+// of the dashboard's initial JS bundle. A skeleton holds the layout in the meantime.
+const TallChartFallback = () => <div className="h-[320px] w-full animate-pulse rounded-md bg-muted/40" />;
+const ShortChartFallback = () => <div className="h-[240px] w-full animate-pulse rounded-md bg-muted/40" />;
+
+const PerformanceChart = dynamic(
+  () => import("@/components/performance-chart").then((m) => m.PerformanceChart),
+  { ssr: false, loading: TallChartFallback },
+);
+const ConversionsChart = dynamic(
+  () => import("@/components/conversions-chart").then((m) => m.ConversionsChart),
+  { ssr: false, loading: ShortChartFallback },
+);
+const ChannelMix = dynamic(
+  () => import("@/components/channel-mix").then((m) => m.ChannelMix),
+  { ssr: false, loading: ShortChartFallback },
+);
+const OrganicMetricsChart = dynamic(
+  () => import("@/components/organic-metrics-chart").then((m) => m.OrganicMetricsChart),
+  { ssr: false, loading: TallChartFallback },
+);
 import {
   buildSparkSeries,
   calculateTotalsFromPerformance,

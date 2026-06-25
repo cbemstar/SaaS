@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getReportData } from "@/lib/report-builder/report-data";
 import { resolveAiModel } from "@/lib/ai/provider";
 import { checkAiCredit, recordAiUsage } from "@/lib/ai/usage";
+import { enforceRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { deltaPercent, formatMetric, getSourceDef, type MetricSource } from "@/lib/metrics/catalog";
 
 const bodySchema = z.object({
@@ -29,6 +30,11 @@ export async function POST(request: Request) {
   const workspaceId = await requireWorkspaceId();
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rl = await enforceRateLimit(RATE_LIMITS.ai, workspaceId);
+  if (!rl.success) {
+    return rateLimitResponse(rl);
   }
 
   let body: z.infer<typeof bodySchema>;

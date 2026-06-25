@@ -6,12 +6,19 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireWorkspaceId, getActiveWorkspace } from "@/lib/workspace";
 import { resolveAiModel } from "@/lib/ai/provider";
 import { checkAiCredit, recordAiUsage } from "@/lib/ai/usage";
+import { enforceRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function POST() {
   // Authenticate first — never spend AI tokens for an unauthenticated caller.
   const workspaceId = await requireWorkspaceId();
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Throttle expensive generations per workspace (defence-in-depth alongside credits).
+  const rl = await enforceRateLimit(RATE_LIMITS.ai, workspaceId);
+  if (!rl.success) {
+    return rateLimitResponse(rl);
   }
 
   const workspace = await getActiveWorkspace();
