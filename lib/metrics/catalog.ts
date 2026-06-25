@@ -236,6 +236,37 @@ export function additiveKeys(source: MetricSource): string[] {
   return getSourceDef(source)?.metrics.filter((m) => m.additive).map((m) => m.key) ?? [];
 }
 
+/**
+ * The handful of headline metrics to surface for a source in compact summaries
+ * (e.g. the all-sources dashboard overview). Derived from the source's curated
+ * defaultCards, skipping hidden metrics and ecommerce-only metrics when the
+ * workspace has no ecommerce data.
+ */
+export function getHeadlineMetrics(source: MetricSource, showEcommerce: boolean, max = 4): string[] {
+  const def = getSourceDef(source);
+  if (!def) return [];
+  const out: string[] = [];
+  for (const card of def.defaultCards) {
+    if (out.includes(card.metric)) continue;
+    const m = getMetricDef(source, card.metric);
+    if (!m || m.hidden) continue;
+    if (m.ecommerce && !showEcommerce) continue;
+    out.push(card.metric);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** The dimension + metric to use for a source's compact "top rows" table. */
+export function primaryBreakdown(source: MetricSource): { dimension: DimensionDef; metric: string } | null {
+  const def = getSourceDef(source);
+  if (!def) return null;
+  const dimension = def.dimensions.find((d) => d.filterable) ?? def.dimensions[0];
+  const metric = def.breakdownMetrics[0];
+  if (!dimension || !metric) return null;
+  return { dimension, metric };
+}
+
 // --- Formatting --------------------------------------------------------------
 
 function formatDuration(seconds: number) {

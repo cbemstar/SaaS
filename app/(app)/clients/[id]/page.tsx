@@ -16,6 +16,7 @@ import { getClient, getClientInsights, getConnectorCatalog, getDailyPerformance 
 import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
 import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
 import { SourceTabs } from "@/components/dashboard/source-tabs";
+import { AllSourcesOverview } from "@/components/dashboard/all-sources-overview";
 import { SampleDataButton } from "@/components/dashboard/sample-data-button";
 import { availableSources } from "@/lib/metrics/store";
 import { buildSparkSeries, calculateTotalsFromPerformance } from "@/lib/dashboard";
@@ -162,18 +163,34 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                 <SampleDataButton variant="default" />
               </div>
             ) : (
-              <SourceTabs sources={dashboardSources}>
-                {dashboardSources.map((source) => (
-                  <SourceDashboardSection
-                    key={source}
-                    workspaceId={workspaceId}
-                    source={source}
-                    scope={{ clientId: id }}
-                    scopeBase={id}
-                    currency={currency}
-                  />
-                ))}
-              </SourceTabs>
+              <div className="space-y-6">
+                <AllSourcesOverview
+                  workspaceId={workspaceId}
+                  scope={{ clientId: id }}
+                  sources={dashboardSources}
+                  currency={currency}
+                />
+                <section className="space-y-3">
+                  <div>
+                    <h2 className="font-display text-lg font-semibold">Explore by source</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Dive into one source · customize cards, filter, change the date range, and rearrange
+                    </p>
+                  </div>
+                  <SourceTabs sources={dashboardSources}>
+                    {dashboardSources.map((source) => (
+                      <SourceDashboardSection
+                        key={source}
+                        workspaceId={workspaceId}
+                        source={source}
+                        scope={{ clientId: id }}
+                        scopeBase={id}
+                        currency={currency}
+                      />
+                    ))}
+                  </SourceTabs>
+                </section>
+              </div>
             )}
           </TabsContent>
 

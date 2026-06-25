@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { DashboardContent } from "@/components/dashboard-content";
 import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
 import { SourceTabs } from "@/components/dashboard/source-tabs";
+import { AllSourcesOverview } from "@/components/dashboard/all-sources-overview";
 import { SampleDataButton } from "@/components/dashboard/sample-data-button";
 import { availableSources } from "@/lib/metrics/store";
 import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
@@ -67,29 +68,38 @@ export default async function DashboardPage() {
     >
       <main className="flex-1 space-y-6 p-4 lg:p-6">
         {workspaceId && overviewSources.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <h2 className="font-display text-lg font-semibold">Analytics</h2>
-                <p className="text-sm text-muted-foreground">
-                  Metrics across all clients · switch sources, customize, filter, and rearrange
-                </p>
+          <>
+            <AllSourcesOverview
+              workspaceId={workspaceId}
+              scope="overview"
+              sources={overviewSources}
+              currency={currency}
+            />
+
+            <section className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="font-display text-lg font-semibold">Explore by source</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Dive into one source · customize cards, filter, change the date range, and rearrange
+                  </p>
+                </div>
+                <SampleDataButton />
               </div>
-              <SampleDataButton />
-            </div>
-            <SourceTabs sources={overviewSources}>
-              {overviewSources.map((source) => (
-                <SourceDashboardSection
-                  key={source}
-                  workspaceId={workspaceId}
-                  source={source}
-                  scope="overview"
-                  scopeBase="overview"
-                  currency={currency}
-                />
-              ))}
-            </SourceTabs>
-          </section>
+              <SourceTabs sources={overviewSources}>
+                {overviewSources.map((source) => (
+                  <SourceDashboardSection
+                    key={source}
+                    workspaceId={workspaceId}
+                    source={source}
+                    scope="overview"
+                    scopeBase="overview"
+                    currency={currency}
+                  />
+                ))}
+              </SourceTabs>
+            </section>
+          </>
         )}
 
         {workspaceId && overviewSources.length === 0 && (
