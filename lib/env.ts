@@ -16,3 +16,6 @@ export const aiDefaultModel = process.env.AI_MODEL ?? "gemini-2.5-flash";
 export const aiKeySecret = process.env.AI_KEY_SECRET;
 export const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 export const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+// When set, every checkout uses this Stripe price instead of the real plan price
+// — a temporary live test switch (e.g. a NZD $0.50 plan). Unset for production.
+export const stripeTestPriceId = process.env.STRIPE_TEST_PRICE_ID;

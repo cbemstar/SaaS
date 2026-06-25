@@ -11,6 +11,7 @@ import {
   pricingPlans,
 } from "@/lib/billing";
 import { canManageTeam, getMemberRole } from "@/lib/team";
+import { stripeTestPriceId } from "@/lib/env";
 import { getAuthenticatedUser, requireWorkspaceId } from "@/lib/workspace";
 
 const checkoutSchema = z.object({
@@ -51,7 +52,8 @@ export async function POST(request: NextRequest) {
   const annual = payload.interval === "year";
   const existing = await getWorkspaceSubscription(workspaceId);
 
-  const priceId = getStripePriceId(payload.plan, payload.interval);
+  // Temporary live-test switch: force every checkout onto a cheap test price.
+  const priceId = stripeTestPriceId || getStripePriceId(payload.plan, payload.interval);
   const inlineLineItem: Stripe.Checkout.SessionCreateParams.LineItem = {
     quantity: 1,
     price_data: {
