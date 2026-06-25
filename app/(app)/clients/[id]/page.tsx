@@ -1,65 +1,43 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Download, ExternalLink, Send } from "lucide-react";
+import { ArrowLeft, Download, LayoutDashboard, Send } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ClientSettingsForm } from "@/components/client-settings-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChannelPill } from "@/components/channel-pill";
-import { InsightCard } from "@/components/insight-card";
-import { KpiCard } from "@/components/kpi-card";
 import { listClientConnectorLinks } from "@/lib/client-connector-links";
-import { getClient, getClientInsights, getConnectorCatalog, getDailyPerformance } from "@/lib/data";
-import { getActiveWorkspace, getActiveWorkspaceId } from "@/lib/workspace";
-import { SourceDashboardSection } from "@/components/dashboard/source-dashboard-section";
-import { SourceTabs } from "@/components/dashboard/source-tabs";
-import { AllSourcesOverview } from "@/components/dashboard/all-sources-overview";
-import { SampleDataButton } from "@/components/dashboard/sample-data-button";
-import { availableSources } from "@/lib/metrics/store";
-import { buildSparkSeries, calculateTotalsFromPerformance } from "@/lib/dashboard";
-import { getAuthorizedConnectorChannels } from "@/lib/connector-channels";
-import { spendForChannels } from "@/lib/performance-data";
-import { cn, formatCurrency } from "@/lib/utils";
+import { getClient, getConnectorCatalog } from "@/lib/data";
+import { getActiveWorkspaceId } from "@/lib/workspace";
+import { cn } from "@/lib/utils";
 
+// A client is a directory entry + where you connect/map platforms for it.
+// All data visualisation lives on the Dashboard; report customisation in Reports.
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const workspaceId = await getActiveWorkspaceId();
-  const workspace = workspaceId ? await getActiveWorkspace() : null;
-  const currency = workspace?.currency ?? "NZD";
-  const dashboardSources = workspaceId ? await availableSources(workspaceId, { clientId: id }) : [];
-  const authorizedChannelKeys = workspaceId ? await getAuthorizedConnectorChannels(workspaceId) : [];
-  const [client, clientInsights, dailyPerformance, connectors, connectorLinks] = await Promise.all([
+  const [client, connectors, connectorLinks] = await Promise.all([
     getClient(id),
-    getClientInsights(id),
-    getDailyPerformance(id, authorizedChannelKeys),
     getConnectorCatalog(),
     workspaceId ? listClientConnectorLinks(workspaceId, id) : Promise.resolve([]),
   ]);
   if (!client) return notFound();
 
-  const connectedChannelKeys = authorizedChannelKeys;
-  const filteredPerformance = dailyPerformance;
-  const hasLiveData =
-    connectedChannelKeys.length > 0 &&
-    filteredPerformance.reduce((sum, day) => sum + spendForChannels(day, connectedChannelKeys), 0) > 0;
-  const totals = calculateTotalsFromPerformance(filteredPerformance, connectedChannelKeys);
-  const spendSpark = buildSparkSeries(filteredPerformance, (day) => spendForChannels(day, connectedChannelKeys));
-  const conversionSpark = buildSparkSeries(filteredPerformance, (day) => day.conversions);
-
   return (
-    <AppShell title={client.name} subtitle={`${client.industry} · ${client.channels.length} channels tracked`}>
+    <AppShell title={client.name} subtitle={`${client.industry} · ${client.channels.length} platforms tracked`}>
       <main className="flex-1 space-y-6 p-4 lg:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/clients" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-3 w-3" /> All clients
           </Link>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5" /> Last 30 days
-            </span>
+            <Button asChild variant="outline" size="sm" className="gap-1.5">
+              <Link href="/dashboard">
+                <LayoutDashboard className="h-3.5 w-3.5" /> View data
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="sm" className="gap-1.5">
               <Link href={`/api/reports/pdf?clientId=${client.id}`} target="_blank">
                 <Download className="h-3.5 w-3.5" /> Export PDF
@@ -88,126 +66,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
                   {client.industry}
                   <span className="text-border">·</span>
                   <Badge variant="success" className="capitalize">{client.status}</Badge>
-                  <span className="text-border">·</span>
+                  {client.channels.length > 0 && <span className="text-border">·</span>}
                   {client.channels.map((ch) => <ChannelPill key={ch} channel={ch} />)}
                 </div>
               </div>
             </div>
-            <Button asChild variant="outline" size="sm" className="gap-1.5">
-              <Link href="/dashboard">
-                <ExternalLink className="h-3.5 w-3.5" /> Agency overview
-              </Link>
-            </Button>
           </CardContent>
         </Card>
 
-        {hasLiveData ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard
-              label="Spend"
-              value={formatCurrency(totals.spend)}
-              delta={totals.spendDelta}
-              hint="Synced · last 30 days"
-              spark={spendSpark.length > 1 ? spendSpark : undefined}
-            />
-            <KpiCard
-              label="Conversions"
-              value={totals.conversions.toLocaleString()}
-              delta={totals.conversionsDelta}
-              hint="Synced · last 30 days"
-              spark={conversionSpark.length > 1 ? conversionSpark : undefined}
-            />
-            <KpiCard
-              label="Avg. CPA"
-              value={totals.conversions > 0 ? formatCurrency(totals.cpa) : "—"}
-              delta={totals.cpaDelta}
-              hint="Cost per conversion"
-              invertDelta
-              spark={
-                buildSparkSeries(filteredPerformance, (day) => {
-                  const spend = spendForChannels(day, connectedChannelKeys);
-                  return day.conversions > 0 ? spend / day.conversions : 0;
-                }).length > 1
-                  ? buildSparkSeries(filteredPerformance, (day) => {
-                      const spend = spendForChannels(day, connectedChannelKeys);
-                      return day.conversions > 0 ? spend / day.conversions : 0;
-                    })
-                  : undefined
-              }
-            />
-            <KpiCard label="Open insights" value={clientInsights.length.toString()} delta={0} hideDelta hint="from AI engine" />
-          </div>
-        ) : (
-          <Card className="border-dashed p-6 text-center text-sm text-muted-foreground">
-            No synced metrics for this client yet. Map ad accounts in Settings, then run Sync on Connectors.
-          </Card>
-        )}
-
-        <Tabs defaultValue="website">
-          <TabsList>
-            <TabsTrigger value="website">Analytics</TabsTrigger>
-            <TabsTrigger value="insights">Insights · {clientInsights.length}</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="website" className="space-y-4">
-            {!workspaceId ? (
-              <p className="text-sm text-muted-foreground">Sign in to view analytics.</p>
-            ) : dashboardSources.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card p-12 text-center">
-                <h2 className="font-display text-lg font-semibold">No analytics data yet</h2>
-                <p className="max-w-md text-sm text-muted-foreground">
-                  Connect this client to GA4, Search Console, Google Ads, or another source on the Connectors
-                  page, then run a sync — or load sample data to explore the dashboard.
-                </p>
-                <SampleDataButton variant="default" />
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <AllSourcesOverview
-                  workspaceId={workspaceId}
-                  scope={{ clientId: id }}
-                  sources={dashboardSources}
-                  currency={currency}
-                />
-                <section className="space-y-3">
-                  <div>
-                    <h2 className="font-display text-lg font-semibold">Explore by source</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Dive into one source · customize cards, filter, change the date range, and rearrange
-                    </p>
-                  </div>
-                  <SourceTabs sources={dashboardSources}>
-                    {dashboardSources.map((source) => (
-                      <SourceDashboardSection
-                        key={source}
-                        workspaceId={workspaceId}
-                        source={source}
-                        scope={{ clientId: id }}
-                        scopeBase={id}
-                        currency={currency}
-                      />
-                    ))}
-                  </SourceTabs>
-                </section>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="insights" className="space-y-3">
-            {clientInsights.length > 0 ? (
-              clientInsights.map((i) => <InsightCard key={i.id} insight={i} />)
-            ) : (
-              <Card className="p-8 text-center text-sm text-muted-foreground">
-                No open insights for this client. Generate one from the Insights page.
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="settings">
-            <ClientSettingsForm client={client} connectors={connectors} connectorLinks={connectorLinks} />
-          </TabsContent>
-        </Tabs>
+        <ClientSettingsForm client={client} connectors={connectors} connectorLinks={connectorLinks} />
       </main>
     </AppShell>
   );

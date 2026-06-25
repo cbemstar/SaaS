@@ -116,6 +116,10 @@ export function GridEditor({
   }, [layout, templateId]);
 
   const selected = layout.items.find((i) => i.id === selectedId) ?? null;
+  // Render the selected card's config panel as a real component (not a function
+  // call) so its hooks live in their own scope, and key it by card id so the
+  // rich-text editor remounts with the right content when you switch cards.
+  const SelectedConfigPanel = selected ? REGISTRY[selected.type].ConfigPanel : null;
 
   function addItem(type: ComponentType) {
     const entry = REGISTRY[type];
@@ -276,12 +280,15 @@ export function GridEditor({
                   Remove
                 </button>
               </div>
-              {REGISTRY[selected.type].ConfigPanel({
-                config: selected.config,
-                onChange: (c) => updateConfig(selected.id, c),
-                data,
-                ctx,
-              })}
+              {SelectedConfigPanel && (
+                <SelectedConfigPanel
+                  key={selected.id}
+                  config={selected.config}
+                  onChange={(c) => updateConfig(selected.id, c)}
+                  data={data}
+                  ctx={ctx}
+                />
+              )}
               <button
                 type="button"
                 onClick={() => setSelectedId(null)}
