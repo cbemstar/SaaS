@@ -289,7 +289,7 @@ export default function Landing() {
               {
                 name: "Agency",
                 price: "$79",
-                clients: "Up to 15 clients",
+                clients: "Up to 20 clients",
                 cta: "Start free",
                 featured: true,
                 intent: "trial",

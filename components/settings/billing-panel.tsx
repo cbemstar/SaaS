@@ -156,13 +156,13 @@ export function BillingPanel({
           aria-label="Toggle annual billing"
           onClick={() => setAnnual((value) => !value)}
           className={cn(
-            "relative h-6 w-11 rounded-full transition-colors",
+            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-0 p-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             annual ? "bg-primary" : "bg-muted",
           )}
         >
           <span
             className={cn(
-              "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform",
+              "pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow ring-0 transition-transform",
               annual ? "translate-x-[22px]" : "translate-x-0.5",
             )}
           />

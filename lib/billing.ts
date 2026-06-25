@@ -27,10 +27,10 @@ export const pricingPlans = {
   Agency: {
     name: "Agency",
     amount: 7900,
-    clientLimit: 15,
-    clientLimitLabel: "Up to 15 clients",
+    clientLimit: 20,
+    clientLimitLabel: "Up to 20 clients",
     aiCredits: 750,
-    features: ["Up to 15 clients", "Everything in Solo", "750 AI credits/mo", "Priority support", "Extra clients $7/mo"],
+    features: ["Up to 20 clients", "Everything in Solo", "750 AI credits/mo", "Priority support", "Extra clients $7/mo"],
   },
   Scale: {
     name: "Scale",
