@@ -171,6 +171,8 @@ export function BillingPanel({
         <Badge variant="success" className="ml-1">2 months free</Badge>
       </div>
 
+      <p className="text-center text-xs text-muted-foreground">All prices in NZD, GST inclusive.</p>
+
       <div className="grid gap-4 md:grid-cols-3">
         {plans.map((plan) => {
           const isCurrent = plan.name === currentPlan;

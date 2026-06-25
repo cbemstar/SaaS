@@ -14,29 +14,31 @@ export const pricingPlans = {
     aiCredits: 25,
     features: ["1 client", "All connectors", "25 AI credits/mo", "Bring your own AI key"],
   },
+  // Launch pricing (NZD, GST-inclusive). Intentionally aggressive to win early
+  // adoption; revisit after ~12 months once the base is established.
   Solo: {
     name: "Solo",
-    amount: 14900,
+    amount: 2900,
     clientLimit: 5,
     clientLimitLabel: "Up to 5 clients",
     aiCredits: 200,
-    features: ["All connectors", "Unlimited users", "200 AI credits/mo", "Bring your own AI key", "White-label PDF"],
+    features: ["Up to 5 clients", "All connectors", "Unlimited users", "200 AI credits/mo", "White-label reports", "Scheduled delivery"],
   },
   Agency: {
     name: "Agency",
-    amount: 49900,
-    clientLimit: 25,
-    clientLimitLabel: "Up to 25 clients",
-    aiCredits: 1000,
-    features: ["Everything in Solo", "1,000 AI credits/mo", "Scheduled reports", "Slack digest", "Priority support"],
+    amount: 7900,
+    clientLimit: 15,
+    clientLimitLabel: "Up to 15 clients",
+    aiCredits: 750,
+    features: ["Up to 15 clients", "Everything in Solo", "750 AI credits/mo", "Priority support", "Extra clients $7/mo"],
   },
   Scale: {
     name: "Scale",
-    amount: 89900,
-    clientLimit: 100,
-    clientLimitLabel: "50+ clients",
-    aiCredits: 5000,
-    features: ["Everything in Agency", "5,000 AI credits/mo", "SSO", "Custom domains", "API access"],
+    amount: 19900,
+    clientLimit: 50,
+    clientLimitLabel: "Up to 50 clients",
+    aiCredits: 2500,
+    features: ["Up to 50 clients", "Everything in Agency", "2,500 AI credits/mo", "SSO & custom domain", "Extra clients $5/mo"],
   },
 } as const;
 
@@ -67,18 +69,19 @@ export function annualAmount(plan: PaidPlanName): number {
 }
 
 /**
- * Live Stripe Price IDs for each paid plan + interval (account calchub.tech).
- * Checkout uses these; if one is missing it falls back to inline price_data so
- * the flow still works against a different/test account.
+ * Live Stripe Price IDs per paid plan + interval (account calchub.tech).
+ * Empty = checkout falls back to inline price_data at the plan's `amount`, so
+ * pricing is always correct. Populate these with the launch-price catalog IDs
+ * (lookup keys korero_<plan>_m / _y) to use the Stripe product catalog.
  */
 export const STRIPE_PRICE_IDS: Record<PaidPlanName, { month: string; year: string }> = {
-  Solo: { month: "price_1TlijrBcmaVSn6Z1A1sAHepF", year: "price_1TlikMBcmaVSn6Z1WkklTvOr" },
-  Agency: { month: "price_1Tlik2BcmaVSn6Z10po2kHZY", year: "price_1TlikOBcmaVSn6Z1RMaCm9cn" },
-  Scale: { month: "price_1Tlik4BcmaVSn6Z1wcvymBbT", year: "price_1TlikPBcmaVSn6Z1Yirac9XB" },
+  Solo: { month: "", year: "" },
+  Agency: { month: "", year: "" },
+  Scale: { month: "", year: "" },
 };
 
 export function getStripePriceId(plan: PaidPlanName, interval: "month" | "year"): string | null {
-  return STRIPE_PRICE_IDS[plan]?.[interval] ?? null;
+  return STRIPE_PRICE_IDS[plan]?.[interval] || null;
 }
 
 export async function getWorkspaceSubscription(workspaceId: string): Promise<StripeCustomerRow | null> {

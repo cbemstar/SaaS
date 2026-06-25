@@ -272,36 +272,37 @@ export default function Landing() {
             </h2>
             <p className="mt-4 text-muted-foreground">
               All connectors, unlimited users, and AI insights on every plan — no per-seat or per-campaign stacking.
+              Prices in NZD, GST inclusive.
             </p>
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-5 md:grid-cols-3">
             {[
               {
                 name: "Solo",
-                price: "$149",
+                price: "$29",
                 clients: "Up to 5 clients",
-                cta: "Start trial",
+                cta: "Start free",
                 featured: false,
                 intent: "trial",
-                extras: ["2,000 AI credits/mo"],
+                extras: ["200 AI credits/mo", "Scheduled delivery"],
               },
               {
                 name: "Agency",
-                price: "$499",
-                clients: "Up to 25 clients",
-                cta: "Start trial",
+                price: "$79",
+                clients: "Up to 15 clients",
+                cta: "Start free",
                 featured: true,
                 intent: "trial",
-                extras: ["Scheduled reports", "Slack digest", "Priority support"],
+                extras: ["750 AI credits/mo", "Priority support"],
               },
               {
                 name: "Scale",
-                price: "$899+",
-                clients: "50+ clients",
-                cta: "Contact sales",
+                price: "$199",
+                clients: "Up to 50 clients",
+                cta: "Start free",
                 featured: false,
-                intent: "sales",
-                extras: ["SSO", "Custom domains", "API access"],
+                intent: "trial",
+                extras: ["2,500 AI credits/mo", "SSO & custom domain"],
               },
             ].map((p) => (
               <div
@@ -349,7 +350,7 @@ export default function Landing() {
               </thead>
               <tbody>
                 {[
-                  ["Monthly price", "$149 NZD flat", "~$79+ USD + scaling", "~$33+ USD + dashboards"],
+                  ["Monthly price", "$29 NZD flat", "~$59+ USD + scaling", "~$42+ USD + dashboards"],
                   ["All connectors", "Included", "Tier-dependent", "Limited"],
                   ["Unlimited users", "Yes", "Extra cost", "Per dashboard"],
                   ["AI insights", "Included", "Higher tiers", "Limited"],
