@@ -75,9 +75,9 @@ export function annualAmount(plan: PaidPlanName): number {
  * (lookup keys korero_<plan>_m / _y) to use the Stripe product catalog.
  */
 export const STRIPE_PRICE_IDS: Record<PaidPlanName, { month: string; year: string }> = {
-  Solo: { month: "", year: "" },
-  Agency: { month: "", year: "" },
-  Scale: { month: "", year: "" },
+  Solo: { month: "price_1Tm9blBcmaVSn6Z1rP5Q0IFl", year: "price_1Tm9bmBcmaVSn6Z1RURW5Bok" },
+  Agency: { month: "price_1Tm9boBcmaVSn6Z1KdPIRrlG", year: "price_1Tm9bqBcmaVSn6Z1bdOuGKgJ" },
+  Scale: { month: "price_1Tm9bsBcmaVSn6Z1ZJZEQxer", year: "price_1Tm9btBcmaVSn6Z1MeLv9CXf" },
 };
 
 export function getStripePriceId(plan: PaidPlanName, interval: "month" | "year"): string | null {
