@@ -1,9 +1,9 @@
-import { Sparkles, Filter, ChevronDown } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InsightCard } from "@/components/insight-card";
+import { RegenerateInsightsButton } from "@/components/regenerate-insights-button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { getClients, getInsights } from "@/lib/data";
 
@@ -30,11 +30,7 @@ export default async function InsightsPage() {
                 </CardDescription>
               </div>
             </div>
-            <form action="/api/insights/generate" method="post">
-              <Button type="submit" variant="outline" size="sm" className="gap-1.5">
-                Regenerate <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </form>
+            <RegenerateInsightsButton />
           </CardHeader>
           <CardContent>
             {insights.length > 0 ? (
@@ -56,12 +52,7 @@ export default async function InsightsPage() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-lg font-semibold">All insights</h2>
-          <Button variant="outline" size="sm" className="gap-1.5" disabled>
-            <Filter className="h-3.5 w-3.5" /> Filters coming soon
-          </Button>
-        </div>
+        <h2 className="font-display text-lg font-semibold">All insights</h2>
 
         {insights.length === 0 ? (
           <Card className="p-8 text-center text-sm text-muted-foreground">

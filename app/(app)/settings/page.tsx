@@ -75,6 +75,11 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             Checkout completed. Your plan will update shortly.
           </div>
         )}
+        {params.checkout === "cancelled" && (
+          <div className="mb-4 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            Checkout cancelled — no charge was made. You can pick a plan again whenever you&apos;re ready.
+          </div>
+        )}
 
         <Tabs defaultValue={params.tab ?? "workspace"} className="space-y-6">
           <TabsList className="flex-wrap">

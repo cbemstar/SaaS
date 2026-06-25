@@ -56,9 +56,9 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <ArrowLeft className="h-3 w-3" /> All clients
           </Link>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <span className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" /> Last 30 days
-            </Button>
+            </span>
             <Button asChild variant="outline" size="sm" className="gap-1.5">
               <Link href={`/api/reports/pdf?clientId=${client.id}`} target="_blank">
                 <Download className="h-3.5 w-3.5" /> Export PDF

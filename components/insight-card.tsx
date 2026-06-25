@@ -5,7 +5,6 @@ import { Badge } from "./ui/badge";
 import { ChannelPill } from "./channel-pill";
 import { ApproveInsightButton } from "./approve-insight-button";
 import { DismissInsightButton } from "./dismiss-insight-button";
-import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import type { Insight } from "@/lib/catalog";
 
@@ -75,6 +74,15 @@ export function InsightCard({
               <div className="text-muted-foreground">{insight.evidence}</div>
             </div>
           )}
+          {!compact && insight.action && (
+            <div className="mt-2 flex items-start gap-1.5 text-xs">
+              <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              <span>
+                <span className="font-semibold text-foreground">Recommended action: </span>
+                <span className="text-muted-foreground">{insight.action}</span>
+              </span>
+            </div>
+          )}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs">
               <span className="text-muted-foreground">Est. impact:</span>{" "}
@@ -88,10 +96,6 @@ export function InsightCard({
                 </Badge>
               )}
               <DismissInsightButton insightId={insight.id} />
-              <Button size="sm" className="h-8 gap-1">
-                {insight.action.split("—")[0].split("→")[0].trim().slice(0, 22)}…
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
             </div>
           </div>
         </div>

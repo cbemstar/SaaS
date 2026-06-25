@@ -5,6 +5,7 @@ import { AlertTriangle, Check, Sparkles, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import { SettingsCheckoutButton } from "@/components/settings-checkout-button";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { cn } from "@/lib/utils";
@@ -149,24 +150,7 @@ export function BillingPanel({
 
       <div className="flex items-center justify-center gap-3 text-sm">
         <span className={cn(!annual && "font-medium text-foreground", annual && "text-muted-foreground")}>Monthly</span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={annual}
-          aria-label="Toggle annual billing"
-          onClick={() => setAnnual((value) => !value)}
-          className={cn(
-            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-0 p-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            annual ? "bg-primary" : "bg-muted",
-          )}
-        >
-          <span
-            className={cn(
-              "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-transform",
-              annual ? "translate-x-[22px]" : "translate-x-0.5",
-            )}
-          />
-        </button>
+        <Switch checked={annual} onCheckedChange={setAnnual} aria-label="Toggle annual billing" />
         <span className={cn(annual && "font-medium text-foreground", !annual && "text-muted-foreground")}>Annual</span>
         <Badge variant="success" className="ml-1">2 months free</Badge>
       </div>
