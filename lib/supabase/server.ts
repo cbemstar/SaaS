@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
@@ -9,8 +10,12 @@ import { hasSupabaseConfig, supabaseAnonKey, supabaseUrl } from "@/lib/env";
  * Supabase verifies it (third-party auth integration) and RLS reads the Clerk
  * user id from auth.jwt()->>'sub'. When signed out, getToken() returns null and
  * Supabase falls back to the anon role, so workspace-scoped policies deny reads.
+ *
+ * Memoized per request: the token is resolved lazily inside accessToken() on
+ * each query, so one client instance per request is correct and avoids rebuilding
+ * it on every call site.
  */
-export async function createSupabaseServerClient() {
+export const createSupabaseServerClient = cache(async () => {
   if (!hasSupabaseConfig) {
     return null;
   }
@@ -20,4 +25,4 @@ export async function createSupabaseServerClient() {
       return (await auth()).getToken();
     },
   });
-}
+});

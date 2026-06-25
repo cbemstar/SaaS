@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureDefaultConnectors, ensureDefaultReportTemplates } from "@/lib/billing";
@@ -16,14 +17,17 @@ function workspaceNameFromEmail(email?: string | null) {
   return `${domain.charAt(0).toUpperCase()}${domain.slice(1)} workspace`;
 }
 
-/** Cheap auth check — Clerk user id from the session, no Clerk API call. */
-export async function getAuthUserId() {
+/**
+ * Cheap auth check — Clerk user id from the session, no Clerk API call.
+ * Memoized per request: all callers within one request share one resolution.
+ */
+export const getAuthUserId = cache(async () => {
   const { userId } = await auth();
   return userId;
-}
+});
 
-/** Full authenticated user including email (one Clerk API call). */
-export async function getAuthenticatedUser() {
+/** Full authenticated user including email (one Clerk API call). Memoized per request. */
+export const getAuthenticatedUser = cache(async () => {
   const { userId } = await auth();
   if (!userId) {
     return null;
@@ -34,9 +38,9 @@ export async function getAuthenticatedUser() {
     user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses?.[0]?.emailAddress ?? null;
 
   return { id: userId, email };
-}
+});
 
-export async function getWorkspaceIdForUser(userId: string) {
+export const getWorkspaceIdForUser = cache(async (userId: string) => {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return null;
@@ -56,18 +60,18 @@ export async function getWorkspaceIdForUser(userId: string) {
   }
 
   return data?.workspace_id ?? null;
-}
+});
 
-export async function getActiveWorkspaceId() {
+export const getActiveWorkspaceId = cache(async () => {
   const userId = await getAuthUserId();
   if (!userId) {
     return null;
   }
 
   return getWorkspaceIdForUser(userId);
-}
+});
 
-export async function getWorkspace(workspaceId: string): Promise<WorkspaceRow | null> {
+export const getWorkspace = cache(async (workspaceId: string): Promise<WorkspaceRow | null> => {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return null;
@@ -80,18 +84,18 @@ export async function getWorkspace(workspaceId: string): Promise<WorkspaceRow | 
   }
 
   return data;
-}
+});
 
-export async function getActiveWorkspace(): Promise<WorkspaceRow | null> {
+export const getActiveWorkspace = cache(async (): Promise<WorkspaceRow | null> => {
   const workspaceId = await getActiveWorkspaceId();
   if (!workspaceId) {
     return null;
   }
 
   return getWorkspace(workspaceId);
-}
+});
 
-export async function getClientCount(workspaceId: string) {
+export const getClientCount = cache(async (workspaceId: string) => {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return 0;
@@ -108,7 +112,7 @@ export async function getClientCount(workspaceId: string) {
   }
 
   return count ?? 0;
-}
+});
 
 export async function getPostLoginPath() {
   const workspaceId = await getActiveWorkspaceId();
@@ -182,14 +186,22 @@ export async function ensureWorkspaceForUser(userId: string, email?: string | nu
 }
 
 export async function requireWorkspaceId() {
-  const user = await getAuthenticatedUser();
-  if (!user) {
+  // Hot path: only the cheap session user id is needed to resolve an existing
+  // workspace. Avoid the Clerk currentUser() API call unless we actually have
+  // to provision a brand-new workspace (first request for a new user).
+  const userId = await getAuthUserId();
+  if (!userId) {
     return null;
   }
 
-  const workspaceId = await getWorkspaceIdForUser(user.id);
+  const workspaceId = await getWorkspaceIdForUser(userId);
   if (workspaceId) {
     return workspaceId;
+  }
+
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    return null;
   }
 
   const provisioned = await ensureWorkspaceForUser(user.id, user.email);
