@@ -8,6 +8,8 @@ const templateSchema = z.object({
   description: z.string().max(280).default(""),
   sections: z.array(z.string()).default([]),
   accent: z.string().nullable().optional(),
+  layout: z.record(z.string(), z.unknown()).nullable().optional(),
+  status: z.enum(["draft", "ready", "sent"]).optional(),
 });
 
 export async function POST(request: Request) {

@@ -11,6 +11,7 @@ export { channels };
 export type { ChannelKey, Client, Insight };
 
 export type DailyPerformancePoint = (typeof mockDailyPerformance)[number];
+export type ReportStatus = "draft" | "ready" | "sent";
 export type ReportTemplate = {
   id: string;
   name: string;
@@ -19,5 +20,9 @@ export type ReportTemplate = {
   used: number;
   sections?: string[];
   accent?: string | null;
+  status?: ReportStatus;
+  hasLayout?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 export type Totals = typeof mockTotals;

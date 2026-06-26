@@ -1,6 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { reportSectionIds } from "@/lib/report-sections";
-import type { ReportTemplateInsert, ReportTemplateRow } from "@/lib/supabase/types";
+import type { ReportStatus, ReportTemplateInsert, ReportTemplateRow } from "@/lib/supabase/types";
 
 function slugifyTemplateId(name: string) {
   const base = name
@@ -18,6 +18,7 @@ export type TemplateInput = {
   sections: string[];
   accent?: string | null;
   layout?: Record<string, unknown> | null;
+  status?: ReportStatus;
 };
 
 function sanitizeSections(sections: string[]) {
@@ -44,6 +45,8 @@ export async function createTemplate(workspaceId: string, input: TemplateInput):
       sections,
       accent: input.accent ?? null,
       is_default: false,
+      layout: input.layout ?? null,
+      status: input.status ?? "draft",
     })
     .select("*")
     .single();
@@ -73,6 +76,7 @@ export async function updateTemplate(
   if (input.description !== undefined) patch.description = input.description;
   if (input.accent !== undefined) patch.accent = input.accent;
   if (input.layout !== undefined) patch.layout = input.layout;
+  if (input.status !== undefined) patch.status = input.status;
   if (input.sections !== undefined) {
     const sections = sanitizeSections(input.sections);
     patch.sections = sections;
@@ -118,6 +122,17 @@ export async function duplicateTemplate(workspaceId: string, templateId: string)
     sections: source.sections ?? ["kpi", "ai", "perf"],
     accent: source.accent,
   });
+}
+
+/** Mark a report as sent once it's been delivered/shared. Best-effort. */
+export async function markTemplateSent(workspaceId: string, templateId: string): Promise<void> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+  await admin
+    .from("report_templates")
+    .update({ status: "sent", updated_at: new Date().toISOString() })
+    .eq("workspace_id", workspaceId)
+    .eq("id", templateId);
 }
 
 export async function getTemplate(workspaceId: string, templateId: string): Promise<ReportTemplateRow | null> {

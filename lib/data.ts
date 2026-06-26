@@ -31,6 +31,8 @@ function mapConnector(row: ConnectorAccountRow): ConnectorCatalogItem {
 }
 
 function mapTemplate(row: ReportTemplateRow): ReportTemplate {
+  const layout = row.layout as { items?: unknown[] } | null | undefined;
+  const hasLayout = Boolean(layout && Array.isArray(layout.items) && layout.items.length > 0);
   return {
     id: row.id,
     name: row.name,
@@ -39,6 +41,10 @@ function mapTemplate(row: ReportTemplateRow): ReportTemplate {
     used: row.used,
     sections: row.sections ?? defaultSectionsForTemplate(row.id),
     accent: row.accent ?? null,
+    status: row.status ?? "draft",
+    hasLayout,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? row.created_at,
   };
 }
 
@@ -253,7 +259,7 @@ export async function getReportTemplates(): Promise<ReportTemplate[]> {
     .from("report_templates")
     .select("*")
     .eq("workspace_id", workspaceId!)
-    .order("used", { ascending: false });
+    .order("updated_at", { ascending: false });
 
   if (error || !data?.length) {
     return [];

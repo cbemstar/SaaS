@@ -46,6 +46,9 @@ export default async function ReportBuilderPage({ params }: { params: Promise<{ 
         data={reportData}
         ctx={{ clientId: previewClient?.id ?? "", days: 30 }}
         aiEnabled={isAiConfigured(workspace)}
+        status={template.status ?? "draft"}
+        createdAt={template.created_at}
+        updatedAt={template.updated_at ?? template.created_at}
       />
     </AppShell>
   );

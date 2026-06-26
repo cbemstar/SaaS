@@ -23,6 +23,14 @@ import {
 } from "@/components/report-builder/registry";
 import { PRESETS } from "@/components/report-builder/presets";
 import type { ReportData } from "@/lib/report-builder/types";
+import type { ReportStatus } from "@/lib/catalog";
+import { formatRelativeTime } from "@/lib/utils";
+
+const STATUS_OPTIONS: Array<{ value: ReportStatus; label: string }> = [
+  { value: "draft", label: "Draft" },
+  { value: "ready", label: "Ready" },
+  { value: "sent", label: "Sent" },
+];
 
 type GridProps = {
   className?: string;
@@ -82,17 +90,42 @@ export function GridEditor({
   data,
   ctx,
   aiEnabled = false,
+  status: initialStatus = "draft",
+  createdAt,
+  updatedAt,
 }: {
   templateId: string;
   initial: ReportLayoutV2;
   data: ReportData | null;
   ctx: EditorCtx;
   aiEnabled?: boolean;
+  status?: ReportStatus;
+  createdAt?: string;
+  updatedAt?: string;
 }) {
   const [layout, setLayout] = useState<ReportLayoutV2>(initial);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<ReportStatus>(initialStatus);
+  const [savedAt, setSavedAt] = useState<string | undefined>(updatedAt);
   const first = useRef(true);
+
+  async function changeStatus(next: ReportStatus) {
+    const prev = status;
+    setStatus(next);
+    try {
+      const res = await fetch(`/api/templates/${templateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(next === "ready" ? "Marked as ready" : next === "sent" ? "Marked as sent" : "Saved as draft");
+    } catch {
+      setStatus(prev);
+      toast.error("Couldn't update status");
+    }
+  }
 
   useEffect(() => {
     if (first.current) {
@@ -108,6 +141,7 @@ export function GridEditor({
       })
         .then((res) => {
           if (!res.ok) toast.error("Couldn't save changes — check your connection");
+          else setSavedAt(new Date().toISOString());
         })
         .catch(() => toast.error("Couldn't save changes — check your connection"))
         .finally(() => setSaving(false));
@@ -166,6 +200,20 @@ export function GridEditor({
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            Status
+            <select
+              value={status}
+              onChange={(e) => void changeStatus(e.target.value as ReportStatus)}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs font-medium text-foreground"
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <select
             defaultValue=""
             onChange={(e) => {
@@ -174,14 +222,18 @@ export function GridEditor({
             }}
             className="h-8 rounded-md border border-border bg-background px-2 text-xs"
           >
-            <option value="">Apply preset…</option>
+            <option value="">Apply template…</option>
             {PRESETS.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
               </option>
             ))}
           </select>
-          <span className="text-xs text-muted-foreground">{saving ? "Saving…" : "Saved"}</span>
+          <span className="text-xs text-muted-foreground">
+            {saving ? "Saving…" : "Saved"}
+            {savedAt && ` · edited ${formatRelativeTime(savedAt)}`}
+            {createdAt && ` · created ${formatRelativeTime(createdAt)}`}
+          </span>
         </div>
         <Link
           href={`/reports/view/${templateId}`}

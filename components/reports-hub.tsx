@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShareReportDialog } from "@/components/report-builder/share-report-dialog";
 import { ScheduledReportsPanel } from "@/components/scheduled-reports-panel";
 import { DeliveryHistoryPanel } from "@/components/delivery-history-panel";
+import { ReportsListPanel } from "@/components/reports-list-panel";
 import type { Client, ReportTemplate } from "@/lib/catalog";
 import type { ScheduledReportView } from "@/lib/scheduled-reports";
 import type { ReportDeliveryView } from "@/lib/report-deliveries";
@@ -120,12 +121,17 @@ export function ReportsHub({
         </CardContent>
       </Card>
 
-      {/* Scheduled + history */}
-      <Tabs defaultValue="scheduled" className="space-y-4">
+      {/* Reports list + scheduled + history */}
+      <Tabs defaultValue="reports" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="reports">Reports{templates.length > 0 ? ` · ${templates.length}` : ""}</TabsTrigger>
           <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
           <TabsTrigger value="history">Delivery history</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="reports">
+          <ReportsListPanel templates={templates} />
+        </TabsContent>
 
         <TabsContent value="scheduled">
           <ScheduledReportsPanel

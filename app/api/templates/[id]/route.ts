@@ -9,6 +9,7 @@ const updateSchema = z.object({
   sections: z.array(z.string()).optional(),
   accent: z.string().nullable().optional(),
   layout: z.record(z.string(), z.unknown()).nullable().optional(),
+  status: z.enum(["draft", "ready", "sent"]).optional(),
   action: z.literal("duplicate").optional(),
 });
 

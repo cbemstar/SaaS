@@ -47,6 +47,8 @@ export type ConnectorAccountRow = {
   created_at: string;
 };
 
+export type ReportStatus = "draft" | "ready" | "sent";
+
 export type ReportTemplateRow = {
   id: string;
   workspace_id: string;
@@ -58,6 +60,7 @@ export type ReportTemplateRow = {
   accent?: string | null;
   is_default?: boolean;
   layout?: Record<string, unknown> | null;
+  status?: ReportStatus;
   created_at: string;
   updated_at?: string;
 };

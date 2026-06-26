@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getClient, getReportTemplates } from "@/lib/data";
 import { assertReportDeliveryAllowed } from "@/lib/report-approval";
 import { deliverReportEmail, recordSentReport } from "@/lib/report-delivery";
+import { markTemplateSent } from "@/lib/templates";
 import { blocksForTemplate } from "@/lib/report-blocks";
 import { getActiveWorkspace, getAuthenticatedUser, requireWorkspaceId } from "@/lib/workspace";
 
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
         blocks,
         reportId: payload.reportId,
       });
+      await markTemplateSent(workspaceId, payload.templateId);
     }
 
     return NextResponse.json({ mode: "sent", client: client.name });

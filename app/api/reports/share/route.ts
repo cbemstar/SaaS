@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Resend } from "resend";
 import { requireWorkspaceId, getActiveWorkspace } from "@/lib/workspace";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { markTemplateSent } from "@/lib/templates";
 import { appUrl, resendApiKey } from "@/lib/env";
 
 const bodySchema = z.object({
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
     console.error("Failed to create report share", error);
     return NextResponse.json({ error: "Could not create share link" }, { status: 500 });
   }
+
+  // A shared report counts as delivered — reflect that in the report's status.
+  await markTemplateSent(workspaceId, body.templateId);
 
   const url = `${appUrl}/r/${token}`;
   let emailed = false;
