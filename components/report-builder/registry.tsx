@@ -9,15 +9,19 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 import { Sparkles } from "lucide-react";
 import { applyStyle, type BlockStyle } from "@/components/report-builder/fields";
@@ -40,6 +44,7 @@ import type { ReportData } from "@/lib/report-builder/types";
 import {
   SOURCES,
   deltaPercent,
+  formatDayLabel,
   formatMetric,
   getMetricDef,
   getSourceDef,
@@ -276,6 +281,130 @@ function MetricGridView({ config, data }: { config: Cfg; data: ReportData | null
   );
 }
 
+function ComboView({ config, data }: { config: Cfg; data: ReportData | null }) {
+  const source = str(config, "source", "google_ads");
+  const sd = data?.sources[source as MetricSource];
+  const def = getSourceDef(source as MetricSource);
+  if (!sd || !def) return <Empty text="Pick a source" />;
+  const barMetric = str(config, "barMetric", def.breakdownMetrics[0] ?? "clicks");
+  const lineMetric = str(config, "lineMetric", def.metrics.find((m) => m.key !== barMetric)?.key ?? barMetric);
+  const barDef = getMetricDef(source as MetricSource, barMetric);
+  const lineDef = getMetricDef(source as MetricSource, lineMetric);
+  const series = sd.daily.map((p) => ({ label: p.label, bar: p.metrics[barMetric] ?? 0, line: p.metrics[lineMetric] ?? 0 }));
+  return (
+    <div className="flex h-full flex-col">
+      <p className="mb-1 text-sm font-semibold">{barDef?.label} & {lineDef?.label}</p>
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={series} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={10} interval={Math.max(0, Math.floor(series.length / 7))} />
+            <YAxis yAxisId="l" tickFormatter={(v) => formatCompact(v)} tickLine={false} axisLine={false} fontSize={10} width={40} />
+            <YAxis yAxisId="r" orientation="right" tickFormatter={(v) => formatCompact(v)} tickLine={false} axisLine={false} fontSize={10} width={40} />
+            <Tooltip formatter={(v: number) => formatCompact(v)} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar yAxisId="l" dataKey="bar" name={barDef?.short ?? "Bar"} fill="var(--report-accent)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            <Line yAxisId="r" type="monotone" dataKey="line" name={lineDef?.short ?? "Line"} stroke={CHART_COLORS[2]} strokeWidth={2} dot={false} isAnimationActive={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function StackedView({ config, data }: { config: Cfg; data: ReportData | null }) {
+  const source = str(config, "source", "ga4");
+  const dimension = str(config, "dimension", "channel_group");
+  const sd = data?.sources[source as MetricSource];
+  const def = getSourceDef(source as MetricSource);
+  if (!sd || !def) return <Empty text="Pick a source" />;
+  const metric = str(config, "metric", def.breakdownMetrics[0] ?? "sessions");
+  const top = rankBreakdown(source as MetricSource, sd.breakdowns, dimension, 6).map((e) => e.value);
+  if (!top.length) return <Empty text="No breakdown data" />;
+  const topSet = new Set(top);
+  const byDate = new Map<string, Record<string, number | string>>();
+  for (const row of sd.breakdowns) {
+    if (row.dimension_type !== dimension || !topSet.has(row.dimension_value)) continue;
+    let rec = byDate.get(row.date);
+    if (!rec) {
+      rec = { date: row.date };
+      byDate.set(row.date, rec);
+    }
+    const key = row.dimension_value || "(not set)";
+    rec[key] = ((rec[key] as number) ?? 0) + (row.metrics[metric] ?? 0);
+  }
+  const series = [...byDate.values()]
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .map((r) => ({ ...r, label: formatDayLabel(String(r.date)) }));
+  return (
+    <div className="flex h-full flex-col">
+      <p className="mb-1 text-sm font-semibold">
+        {getMetricDef(source as MetricSource, metric)?.label ?? metric} by {def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}
+      </p>
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={series} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={10} interval={Math.max(0, Math.floor(series.length / 7))} />
+            <YAxis tickFormatter={(v) => formatCompact(v)} tickLine={false} axisLine={false} fontSize={10} width={40} />
+            <Tooltip formatter={(v: number) => formatCompact(v)} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {top.map((value, i) => (
+              <Area
+                key={value || i}
+                type="monotone"
+                dataKey={value || "(not set)"}
+                stackId="1"
+                stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                fill={CHART_COLORS[i % CHART_COLORS.length]}
+                fillOpacity={0.7}
+                isAnimationActive={false}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function ScatterView({ config, data }: { config: Cfg; data: ReportData | null }) {
+  const source = str(config, "source", "google_ads");
+  const dimension = str(config, "dimension", "campaign");
+  const sd = data?.sources[source as MetricSource];
+  const def = getSourceDef(source as MetricSource);
+  if (!sd || !def) return <Empty text="Pick a source" />;
+  const xMetric = str(config, "xMetric", def.breakdownMetrics[0] ?? "clicks");
+  const yMetric = str(config, "yMetric", def.breakdownMetrics[1] ?? def.breakdownMetrics[0] ?? "conversions");
+  const xDef = getMetricDef(source as MetricSource, xMetric);
+  const yDef = getMetricDef(source as MetricSource, yMetric);
+  const points = rankBreakdown(source as MetricSource, sd.breakdowns, dimension, 30)
+    .map((e) => ({ x: e.metrics[xMetric] ?? 0, y: e.metrics[yMetric] ?? 0, name: e.value || "(not set)" }))
+    .filter((p) => p.x > 0 || p.y > 0);
+  if (!points.length) return <Empty text="No breakdown data" />;
+  return (
+    <div className="flex h-full flex-col">
+      <p className="mb-1 text-sm font-semibold">{xDef?.short ?? xMetric} vs {yDef?.short ?? yMetric}</p>
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
+            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+            <XAxis type="number" dataKey="x" name={xDef?.short ?? xMetric} tickFormatter={(v) => formatCompact(v)} tickLine={false} axisLine={false} fontSize={10} />
+            <YAxis type="number" dataKey="y" name={yDef?.short ?? yMetric} tickFormatter={(v) => formatCompact(v)} tickLine={false} axisLine={false} fontSize={10} width={40} />
+            <ZAxis range={[60, 60]} />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              formatter={(v: number) => formatCompact(v)}
+              labelFormatter={() => ""}
+            />
+            <Scatter data={points} fill="var(--report-accent)" isAnimationActive={false} />
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function Html({ html, placeholder }: { html: string; placeholder: string }) {
   if (!html) return <Empty text={placeholder} />;
   return <div className="rb-prose text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
@@ -480,6 +609,33 @@ function tablePanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => v
   );
 }
 
+function comboPanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
+  const source = str(config, "source", "google_ads");
+  return (
+    <div className="space-y-3">
+      <SelectControl label="Source" value={source} options={SOURCE_OPTIONS} onChange={(v) => onChange({ ...config, source: v, barMetric: "", lineMetric: "" })} />
+      <SelectControl label="Bar metric" value={str(config, "barMetric", "clicks")} options={metricOptions(source)} onChange={(v) => onChange({ ...config, barMetric: v })} />
+      <SelectControl label="Line metric" value={str(config, "lineMetric", "conversions")} options={metricOptions(source)} onChange={(v) => onChange({ ...config, lineMetric: v })} />
+      <StylePanel style={styleOf(config)} onChange={(s) => onChange({ ...config, style: s })} />
+    </div>
+  );
+}
+
+function scatterPanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
+  const source = str(config, "source", "google_ads");
+  const def = getSourceDef(source as MetricSource);
+  const opts = metricOptions(source).filter((m) => (def?.breakdownMetrics ?? []).includes(m.value));
+  return (
+    <div className="space-y-3">
+      <SelectControl label="Source" value={source} options={SOURCE_OPTIONS} onChange={(v) => onChange({ ...config, source: v, xMetric: "", yMetric: "" })} />
+      <SelectControl label="Group by" value={str(config, "dimension", "campaign")} options={dimensionOptions(source)} onChange={(v) => onChange({ ...config, dimension: v })} />
+      <SelectControl label="X axis" value={str(config, "xMetric", def?.breakdownMetrics[0] ?? "clicks")} options={opts} onChange={(v) => onChange({ ...config, xMetric: v })} />
+      <SelectControl label="Y axis" value={str(config, "yMetric", def?.breakdownMetrics[1] ?? "conversions")} options={opts} onChange={(v) => onChange({ ...config, yMetric: v })} />
+      <StylePanel style={styleOf(config)} onChange={(s) => onChange({ ...config, style: s })} />
+    </div>
+  );
+}
+
 export const REGISTRY: Record<ComponentType, RegistryEntry> = {
   heading: {
     label: "Heading",
@@ -606,6 +762,30 @@ export const REGISTRY: Record<ComponentType, RegistryEntry> = {
     Render: TableView,
     ConfigPanel: tablePanel,
   },
+  combo: {
+    label: "Combo (bar + line)",
+    group: "Data",
+    defaultSize: { w: 6, h: 4 },
+    defaultConfig: { source: "google_ads", barMetric: "clicks", lineMetric: "conversions", style: {} },
+    Render: ComboView,
+    ConfigPanel: comboPanel,
+  },
+  stacked: {
+    label: "Stacked area",
+    group: "Data",
+    defaultSize: { w: 6, h: 4 },
+    defaultConfig: { source: "ga4", dimension: "channel_group", metric: "sessions", style: {} },
+    Render: StackedView,
+    ConfigPanel: compositionPanel,
+  },
+  scatter: {
+    label: "Scatter",
+    group: "Data",
+    defaultSize: { w: 6, h: 4 },
+    defaultConfig: { source: "google_ads", dimension: "campaign", xMetric: "clicks", yMetric: "conversions", style: {} },
+    Render: ScatterView,
+    ConfigPanel: scatterPanel,
+  },
   breakdown: {
     label: "Breakdown table",
     group: "Data",
@@ -669,6 +849,6 @@ export function ItemRender({ item, data }: { item: ReportItem; data: ReportData 
 
 export const PALETTE_GROUPS: Array<{ group: "Content" | "Data" | "AI"; types: ComponentType[] }> = [
   { group: "Content", types: ["heading", "text", "image", "client_header", "divider", "spacer"] },
-  { group: "Data", types: ["kpi", "chart", "pie", "table", "breakdown", "metric_grid"] },
+  { group: "Data", types: ["kpi", "chart", "combo", "stacked", "scatter", "pie", "table", "breakdown", "metric_grid"] },
   { group: "AI", types: ["ai_summary", "ai_recommendations", "ai_highlights", "ai_whatchanged"] },
 ];
