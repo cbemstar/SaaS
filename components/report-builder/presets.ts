@@ -176,6 +176,107 @@ export function getPreset(id: string): Preset | null {
   return PRESETS.find((p) => p.id === id) ?? null;
 }
 
+export type PlanBlock = {
+  type: string;
+  heading?: string;
+  source?: string;
+  metric?: string;
+  metrics?: string[];
+  dimension?: string;
+  chartType?: string;
+};
+
+const AI_DEFAULT_TITLE: Record<string, string> = {
+  ai_summary: "Executive summary",
+  ai_whatchanged: "What changed",
+  ai_highlights: "Highlights",
+  ai_recommendations: "Recommendations",
+};
+
+/**
+ * Turn an AI-generated report plan (ordered blocks) into positioned grid items.
+ * Positions are computed here (deterministic 12-col packing) so the model only
+ * has to decide structure, not pixel math. KPIs and half-width cards pack into
+ * rows; charts / AI / full-width blocks take their own row.
+ */
+export function mapPlanToItems(blocks: PlanBlock[]): PresetItem[] {
+  const items: PresetItem[] = [];
+  let y = 0;
+  let rowX = 0;
+  let rowH = 0;
+
+  const flush = () => {
+    if (rowX > 0) {
+      y += rowH;
+      rowX = 0;
+      rowH = 0;
+    }
+  };
+  const place = (type: ComponentType, w: number, h: number, config: Cfg) => {
+    if (rowX + w > 12) flush();
+    items.push({ type, x: rowX, y, w, h, config });
+    rowX += w;
+    rowH = Math.max(rowH, h);
+  };
+  const full = (type: ComponentType, h: number, config: Cfg) => {
+    flush();
+    place(type, 12, h, config);
+    flush();
+  };
+
+  // Always lead with a client header.
+  full("client_header", 2, { style: {} });
+
+  for (const b of blocks) {
+    const t = (heading?: string) => (heading ? { title: heading } : {});
+    switch (b.type) {
+      case "section_heading":
+        full("heading", 1, { text: b.heading || "Section", level: "h2", style: {} });
+        break;
+      case "kpi":
+        place("kpi", 3, 2, { source: b.source, metric: b.metric, ...t(b.heading), style: {} });
+        break;
+      case "pie":
+        place("pie", 6, 4, { source: b.source, dimension: b.dimension, metric: b.metric, ...t(b.heading), style: {} });
+        break;
+      case "breakdown":
+        place("breakdown", 6, 4, { source: b.source, dimension: b.dimension, ...t(b.heading), style: {} });
+        break;
+      case "table":
+        place("table", 6, 4, { source: b.source, dimension: b.dimension, metrics: b.metrics ?? [], ...t(b.heading), style: {} });
+        break;
+      case "scatter":
+        place("scatter", 6, 4, { source: b.source, dimension: b.dimension, xMetric: b.metrics?.[0], yMetric: b.metrics?.[1], ...t(b.heading), style: {} });
+        break;
+      case "metric_grid":
+        full("metric_grid", 3, { source: b.source, metrics: b.metrics ?? [], ...t(b.heading), style: {} });
+        break;
+      case "chart":
+        full("chart", 4, { source: b.source, metric: b.metric, chartType: b.chartType || "area", ...t(b.heading), style: {} });
+        break;
+      case "combo":
+        full("combo", 4, { source: b.source, barMetric: b.metrics?.[0], lineMetric: b.metrics?.[1], ...t(b.heading), style: {} });
+        break;
+      case "stacked":
+        full("stacked", 4, { source: b.source, dimension: b.dimension, metric: b.metric, ...t(b.heading), style: {} });
+        break;
+      case "geo":
+        full("geo", 5, { source: b.source, metric: b.metric, ...t(b.heading), style: {} });
+        break;
+      case "ai_summary":
+      case "ai_whatchanged":
+      case "ai_highlights":
+      case "ai_recommendations":
+        full(b.type as ComponentType, 5, { title: b.heading || AI_DEFAULT_TITLE[b.type], html: "", style: {} });
+        break;
+      default:
+        break;
+    }
+  }
+  flush();
+  return items;
+}
+
 /**
  * Build a comprehensive report layout from the sources that actually have data,
  * for the "Create Full Report with AI" action. Each source gets a section

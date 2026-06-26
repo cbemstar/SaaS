@@ -62,6 +62,8 @@ export { isV2 } from "@/lib/report-builder/layout";
 const str = (c: Cfg, k: string, d = "") => (typeof c[k] === "string" ? (c[k] as string) : d);
 const arr = (c: Cfg, k: string) => (Array.isArray(c[k]) ? (c[k] as string[]) : []);
 const styleOf = (c: Cfg): BlockStyle => (c.style as BlockStyle) ?? {};
+// A card's heading prefers its user-set title, falling back to an auto label.
+const ttl = (c: Cfg, fallback: string) => str(c, "title") || fallback;
 
 const SOURCE_OPTIONS = (Object.keys(SOURCES) as MetricSource[])
   .filter((s) => getSourceDef(s))
@@ -92,7 +94,7 @@ function KpiView({ config, data }: { config: Cfg; data: ReportData | null }) {
   const positive = delta !== null && (def.higherIsBetter ? delta >= 0 : delta < 0);
   return (
     <div>
-      <p className="text-xs font-medium text-muted-foreground">{def.label}</p>
+      <p className="text-xs font-medium text-muted-foreground">{ttl(config, def.label)}</p>
       <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
         {formatMetric(source as MetricSource, metric, value, data?.currency)}
       </p>
@@ -125,7 +127,7 @@ function ChartView({ config, data }: { config: Cfg; data: ReportData | null }) {
   );
   return (
     <div className="flex h-full flex-col">
-      <p className="mb-1 text-sm font-semibold">{def.label}</p>
+      <p className="mb-1 text-sm font-semibold">{ttl(config, def.label)}</p>
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           {chartType === "bar" ? (
@@ -169,7 +171,7 @@ function PieView({ config, data }: { config: Cfg; data: ReportData | null }) {
   return (
     <div className="flex h-full flex-col">
       <p className="mb-1 text-sm font-semibold">
-        {getMetricDef(source as MetricSource, metric)?.label ?? metric} by {def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}
+        {ttl(config, `${getMetricDef(source as MetricSource, metric)?.label ?? metric} by ${def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}`)}
       </p>
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
@@ -201,7 +203,7 @@ function TableView({ config, data }: { config: Cfg; data: ReportData | null }) {
   return (
     <div className="overflow-auto">
       <p className="mb-1 text-sm font-semibold">
-        {def.dimensions.find((d) => d.type === dimension)?.label ?? dimension}
+        {ttl(config, def.dimensions.find((d) => d.type === dimension)?.label ?? dimension)}
       </p>
       <table className="w-full text-sm">
         <thead>
@@ -241,7 +243,7 @@ function BreakdownView({ config, data }: { config: Cfg; data: ReportData | null 
   return (
     <div>
       <p className="mb-1 text-sm font-semibold">
-        Top {def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}s
+        {ttl(config, `Top ${def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}s`)}
       </p>
       <table className="w-full text-sm">
         <tbody>
@@ -265,7 +267,9 @@ function MetricGridView({ config, data }: { config: Cfg; data: ReportData | null
   const sd = data?.sources[source as MetricSource];
   if (!sd || !metrics.length) return <Empty text="Pick metrics" />;
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-2">
+      {str(config, "title") && <p className="text-sm font-semibold">{str(config, "title")}</p>}
+      <div className="grid grid-cols-2 gap-3">
       {metrics.map((m) => {
         const def = getMetricDef(source as MetricSource, m);
         if (!def) return null;
@@ -278,6 +282,7 @@ function MetricGridView({ config, data }: { config: Cfg; data: ReportData | null
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -294,7 +299,7 @@ function ComboView({ config, data }: { config: Cfg; data: ReportData | null }) {
   const series = sd.daily.map((p) => ({ label: p.label, bar: p.metrics[barMetric] ?? 0, line: p.metrics[lineMetric] ?? 0 }));
   return (
     <div className="flex h-full flex-col">
-      <p className="mb-1 text-sm font-semibold">{barDef?.label} & {lineDef?.label}</p>
+      <p className="mb-1 text-sm font-semibold">{ttl(config, `${barDef?.label} & ${lineDef?.label}`)}</p>
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={series} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
@@ -340,7 +345,7 @@ function StackedView({ config, data }: { config: Cfg; data: ReportData | null })
   return (
     <div className="flex h-full flex-col">
       <p className="mb-1 text-sm font-semibold">
-        {getMetricDef(source as MetricSource, metric)?.label ?? metric} by {def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}
+        {ttl(config, `${getMetricDef(source as MetricSource, metric)?.label ?? metric} by ${def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}`)}
       </p>
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
@@ -385,7 +390,7 @@ function ScatterView({ config, data }: { config: Cfg; data: ReportData | null })
   if (!points.length) return <Empty text="No breakdown data" />;
   return (
     <div className="flex h-full flex-col">
-      <p className="mb-1 text-sm font-semibold">{xDef?.short ?? xMetric} vs {yDef?.short ?? yMetric}</p>
+      <p className="mb-1 text-sm font-semibold">{ttl(config, `${xDef?.short ?? xMetric} vs ${yDef?.short ?? yMetric}`)}</p>
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 6, right: 10, left: -18, bottom: 0 }}>
@@ -528,7 +533,7 @@ function aiEntry(label: string, type: ComponentType, placeholder: string, defaul
   return {
     label,
     group: "AI",
-    defaultSize: { w: 6, h: 4 },
+    defaultSize: { w: 6, h: 5 },
     defaultConfig: { title: defaultTitle, html: "", style: {} },
     Render: ({ config }) => (
       <div className="space-y-2">
@@ -538,7 +543,7 @@ function aiEntry(label: string, type: ComponentType, placeholder: string, defaul
     ),
     ConfigPanel: ({ config, onChange, ctx }) => (
       <div className="space-y-3">
-        <TextControl label="Heading" value={str(config, "title")} onChange={(v) => onChange({ ...config, title: v })} />
+        <p className="text-xs text-muted-foreground">Rename this card in its header on the canvas.</p>
         <AiPanel type={type} config={config} onChange={onChange} ctx={ctx} />
         <div>
           <p className="mb-1 text-xs font-medium text-muted-foreground">Content — edit or add your own commentary</p>
@@ -707,7 +712,7 @@ export const REGISTRY: Record<ComponentType, RegistryEntry> = {
   text: {
     label: "Text",
     group: "Content",
-    defaultSize: { w: 6, h: 3 },
+    defaultSize: { w: 6, h: 4 },
     defaultConfig: { html: "<p>Add your commentary here.</p>", style: {} },
     Render: ({ config }) => <Html html={str(config, "html")} placeholder="Add text in the panel" />,
     ConfigPanel: ({ config, onChange }) => (
@@ -886,11 +891,27 @@ export const REGISTRY: Record<ComponentType, RegistryEntry> = {
 };
 
 /** Renders one item's content with its per-card style box. */
+// Cards that must fill their cell at a definite height (charts/maps/images scale
+// to the box; spacer/divider are decorative). Everything else is text-driven and
+// should GROW to its content so nothing is clipped or hidden.
+const FILL_TYPES = new Set<ComponentType>([
+  "chart",
+  "combo",
+  "stacked",
+  "scatter",
+  "pie",
+  "geo",
+  "image",
+  "spacer",
+  "divider",
+]);
+
 export function ItemRender({ item, data }: { item: ReportItem; data: ReportData | null }) {
   const entry = REGISTRY[item.type];
   if (!entry) return null;
+  const fill = FILL_TYPES.has(item.type);
   return (
-    <div className="h-full overflow-hidden" style={applyStyle(styleOf(item.config))}>
+    <div className={fill ? "h-full overflow-hidden" : "min-h-full"} style={applyStyle(styleOf(item.config))}>
       {entry.Render({ config: item.config, data })}
     </div>
   );

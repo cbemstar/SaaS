@@ -22,7 +22,7 @@ import {
   type ReportItem,
   type ReportLayoutV2,
 } from "@/components/report-builder/registry";
-import { PRESETS, buildAutoReportItems } from "@/components/report-builder/presets";
+import { PRESETS, buildAutoReportItems, mapPlanToItems, type PlanBlock } from "@/components/report-builder/presets";
 import type { MetricSource } from "@/lib/metrics/catalog";
 import type { ReportData } from "@/lib/report-builder/types";
 import type { ReportStatus } from "@/lib/catalog";
@@ -187,7 +187,29 @@ export function GridEditor({
     }
 
     setBuilding(true);
-    const items = buildAutoReportItems(sources).map((it) => ({ ...it, id: newId() }));
+
+    // Ask the AI to design an expert layout; fall back to a deterministic one.
+    let planned: PlanBlock[] | null = null;
+    if (aiEnabled) {
+      try {
+        const res = await fetch("/api/reports/auto-layout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: ctx.clientId, days: ctx.days }),
+        });
+        const d = (await res.json().catch(() => null)) as { blocks?: PlanBlock[]; error?: string } | null;
+        if (res.ok && Array.isArray(d?.blocks) && d.blocks.length) {
+          planned = d.blocks;
+        } else if (!res.ok && d?.error) {
+          toast.message("Using a standard layout", { description: d.error });
+        }
+      } catch {
+        /* fall back below */
+      }
+    }
+
+    const baseItems = planned ? mapPlanToItems(planned) : buildAutoReportItems(sources);
+    const items = baseItems.map((it) => ({ ...it, id: newId() }));
     setLayout((prev) => ({ ...prev, items }));
     setSelectedId(null);
 
@@ -368,16 +390,29 @@ export function GridEditor({
                       )}
                     >
                       <div className="rb-drag flex shrink-0 cursor-grab items-center justify-between gap-1 border-b bg-muted/30 px-2 py-1 active:cursor-grabbing">
-                        <span className="flex items-center gap-1 truncate text-[11px] font-medium text-muted-foreground">
-                          <GripVertical className="h-3 w-3" /> {REGISTRY[item.type].label}
+                        <span className="flex min-w-0 flex-1 items-center gap-1">
+                          <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <input
+                            value={(item.config.title as string) ?? ""}
+                            placeholder={REGISTRY[item.type].label}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedId(item.id);
+                            }}
+                            onChange={(e) => updateConfig(item.id, { ...item.config, title: e.target.value })}
+                            className="min-w-0 flex-1 cursor-text truncate bg-transparent text-[11px] font-medium text-muted-foreground outline-none placeholder:text-muted-foreground/70 focus:text-foreground"
+                            aria-label="Card name"
+                          />
                         </span>
                         <button
                           type="button"
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             removeItem(item.id);
                           }}
-                          className="text-muted-foreground hover:text-destructive"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
                           aria-label="Remove"
                         >
                           <Trash2 className="h-3 w-3" />

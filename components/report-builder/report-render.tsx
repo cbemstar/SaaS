@@ -18,7 +18,9 @@ export function ReportRender({ layout, data }: { layout: ReportLayoutV2; data: R
         style={{
           display: "grid",
           gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-          gridAutoRows: `${ROW_H}px`,
+          // Rows grow to fit content so long text/tables/AI cards are never clipped
+          // in the rendered/printed report; ROW_H is the minimum per grid row.
+          gridAutoRows: `minmax(${ROW_H}px, auto)`,
           gap: GAP,
         }}
       >
