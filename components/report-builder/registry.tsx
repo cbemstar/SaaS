@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import DOMPurify from "isomorphic-dompurify";
 import {
   Area,
@@ -405,6 +406,24 @@ function ScatterView({ config, data }: { config: Cfg; data: ReportData | null })
   );
 }
 
+// The map (react-simple-maps + bundled world topology) is heavy, so load it only
+// when a Geo card is actually rendered.
+const LazyGeoMap = dynamic(() => import("@/components/report-builder/geo-map").then((m) => m.GeoMap), {
+  ssr: false,
+  loading: () => <Empty text="Loading map…" />,
+});
+
+function GeoView({ config, data }: { config: Cfg; data: ReportData | null }) {
+  const source = str(config, "source", "ga4");
+  const def = getSourceDef(source as MetricSource);
+  if (!def) return <Empty text="Pick a source" />;
+  if (!def.dimensions.some((d) => d.type === "country")) {
+    return <Empty text="This source has no country breakdown" />;
+  }
+  const metric = str(config, "metric", def.breakdownMetrics[0] ?? "sessions");
+  return <LazyGeoMap data={data} source={source} metric={metric} />;
+}
+
 function Html({ html, placeholder }: { html: string; placeholder: string }) {
   if (!html) return <Empty text={placeholder} />;
   return <div className="rb-prose text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
@@ -609,6 +628,28 @@ function tablePanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => v
   );
 }
 
+const GEO_SOURCE_OPTIONS = (Object.keys(SOURCES) as MetricSource[])
+  .filter((s) => getSourceDef(s)?.dimensions.some((d) => d.type === "country"))
+  .map((s) => ({ label: getSourceDef(s)!.label, value: s }));
+
+function geoPanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
+  const source = str(config, "source", GEO_SOURCE_OPTIONS[0]?.value ?? "ga4");
+  const def = getSourceDef(source as MetricSource);
+  const breakdownOnly = new Set(def?.breakdownMetrics ?? []);
+  return (
+    <div className="space-y-3">
+      <SelectControl label="Source" value={source} options={GEO_SOURCE_OPTIONS} onChange={(v) => onChange({ ...config, source: v, metric: "" })} />
+      <SelectControl
+        label="Metric"
+        value={str(config, "metric", def?.breakdownMetrics[0] ?? "sessions")}
+        options={metricOptions(source).filter((m) => breakdownOnly.has(m.value))}
+        onChange={(v) => onChange({ ...config, metric: v })}
+      />
+      <StylePanel style={styleOf(config)} onChange={(s) => onChange({ ...config, style: s })} />
+    </div>
+  );
+}
+
 function comboPanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
   const source = str(config, "source", "google_ads");
   return (
@@ -786,6 +827,14 @@ export const REGISTRY: Record<ComponentType, RegistryEntry> = {
     Render: ScatterView,
     ConfigPanel: scatterPanel,
   },
+  geo: {
+    label: "Geo map",
+    group: "Data",
+    defaultSize: { w: 6, h: 5 },
+    defaultConfig: { source: "ga4", metric: "sessions", style: {} },
+    Render: GeoView,
+    ConfigPanel: geoPanel,
+  },
   breakdown: {
     label: "Breakdown table",
     group: "Data",
@@ -849,6 +898,6 @@ export function ItemRender({ item, data }: { item: ReportItem; data: ReportData 
 
 export const PALETTE_GROUPS: Array<{ group: "Content" | "Data" | "AI"; types: ComponentType[] }> = [
   { group: "Content", types: ["heading", "text", "image", "client_header", "divider", "spacer"] },
-  { group: "Data", types: ["kpi", "chart", "combo", "stacked", "scatter", "pie", "table", "breakdown", "metric_grid"] },
+  { group: "Data", types: ["kpi", "chart", "combo", "stacked", "scatter", "geo", "pie", "table", "breakdown", "metric_grid"] },
   { group: "AI", types: ["ai_summary", "ai_recommendations", "ai_highlights", "ai_whatchanged"] },
 ];

@@ -14,6 +14,7 @@ export type ComponentType =
   | "combo"
   | "stacked"
   | "scatter"
+  | "geo"
   | "pie"
   | "table"
   | "breakdown"
