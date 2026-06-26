@@ -7,10 +7,11 @@ import { useEffect, useRef, useState, type ComponentType as ReactComponentType, 
 import Link from "next/link";
 import { toast } from "sonner";
 import GridLayout, { WidthProvider, type Layout } from "react-grid-layout/legacy";
-import { GripVertical, Trash2, ExternalLink, Plus } from "lucide-react";
+import { GripVertical, Trash2, ExternalLink, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ColorInput, FONT_OPTIONS } from "@/components/report-builder/fields";
 import { Labeled, SelectControl } from "@/components/report-builder/controls";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { themeStyle, type ReportTheme } from "@/components/report-builder/report-theme";
 import {
   ItemRender,
@@ -21,7 +22,8 @@ import {
   type ReportItem,
   type ReportLayoutV2,
 } from "@/components/report-builder/registry";
-import { PRESETS } from "@/components/report-builder/presets";
+import { PRESETS, buildAutoReportItems } from "@/components/report-builder/presets";
+import type { MetricSource } from "@/lib/metrics/catalog";
 import type { ReportData } from "@/lib/report-builder/types";
 import type { ReportStatus } from "@/lib/catalog";
 import { formatRelativeTime } from "@/lib/utils";
@@ -108,6 +110,8 @@ export function GridEditor({
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<ReportStatus>(initialStatus);
   const [savedAt, setSavedAt] = useState<string | undefined>(updatedAt);
+  const [building, setBuilding] = useState(false);
+  const confirm = useConfirm();
   const first = useRef(true);
 
   async function changeStatus(next: ReportStatus) {
@@ -154,6 +158,68 @@ export function GridEditor({
   // call) so its hooks live in their own scope, and key it by card id so the
   // rich-text editor remounts with the right content when you switch cards.
   const SelectedConfigPanel = selected ? REGISTRY[selected.type].ConfigPanel : null;
+
+  const AI_KINDS: Partial<Record<ComponentType, "summary" | "recommendations" | "highlights" | "whatchanged">> = {
+    ai_summary: "summary",
+    ai_recommendations: "recommendations",
+    ai_highlights: "highlights",
+    ai_whatchanged: "whatchanged",
+  };
+
+  async function createFullReport() {
+    if (!ctx.clientId) {
+      toast.error("Open a client with data to build a full report.");
+      return;
+    }
+    const sources = (data?.availableSources ?? []) as MetricSource[];
+    if (!sources.length) {
+      toast.error("No connected sources with data to build from yet.");
+      return;
+    }
+    if (layout.items.length > 0) {
+      const ok = await confirm({
+        title: "Build a full report?",
+        description: "This lays out a complete report from your connected sources and replaces the current cards.",
+        confirmText: "Build report",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+
+    setBuilding(true);
+    const items = buildAutoReportItems(sources).map((it) => ({ ...it, id: newId() }));
+    setLayout((prev) => ({ ...prev, items }));
+    setSelectedId(null);
+
+    if (aiEnabled) {
+      await Promise.all(
+        items
+          .filter((it) => AI_KINDS[it.type])
+          .map(async (it) => {
+            try {
+              const res = await fetch("/api/reports/ai", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clientId: ctx.clientId, days: ctx.days, kind: AI_KINDS[it.type] }),
+              });
+              const d = (await res.json().catch(() => null)) as { text?: string } | null;
+              if (res.ok && d?.text) {
+                setLayout((prev) => ({
+                  ...prev,
+                  items: prev.items.map((p) => (p.id === it.id ? { ...p, config: { ...p.config, html: d.text } } : p)),
+                }));
+              }
+            } catch {
+              /* leave the card empty for manual generation */
+            }
+          }),
+      );
+      if (typeof window !== "undefined") window.dispatchEvent(new Event("ai-credits-updated"));
+    }
+
+    setBuilding(false);
+    toast.success("Full report created — review and edit any card.");
+  }
 
   function addItem(type: ComponentType) {
     const entry = REGISTRY[type];
@@ -235,12 +301,22 @@ export function GridEditor({
             {createdAt && ` · created ${formatRelativeTime(createdAt)}`}
           </span>
         </div>
-        <Link
-          href={`/reports/view/${templateId}`}
-          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
-        >
-          <ExternalLink className="h-3.5 w-3.5" /> View / Print
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void createFullReport()}
+            disabled={building}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> {building ? "Building…" : "Create Full Report with AI"}
+          </button>
+          <Link
+            href={`/reports/view/${templateId}`}
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> View / Print
+          </Link>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1">

@@ -11,6 +11,8 @@ export type ComponentType =
   | "client_header"
   | "kpi"
   | "chart"
+  | "pie"
+  | "table"
   | "breakdown"
   | "metric_grid"
   | "ai_summary"

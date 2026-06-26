@@ -1,4 +1,5 @@
 import type { Cfg, ComponentType } from "@/components/report-builder/registry";
+import { getSourceDef, getHeadlineMetrics, primaryBreakdown, type MetricSource } from "@/lib/metrics/catalog";
 
 export type PresetItem = { type: ComponentType; x: number; y: number; w: number; h: number; config: Cfg };
 export type Preset = {
@@ -173,4 +174,40 @@ export const PRESETS: Preset[] = [
 
 export function getPreset(id: string): Preset | null {
   return PRESETS.find((p) => p.id === id) ?? null;
+}
+
+/**
+ * Build a comprehensive report layout from the sources that actually have data,
+ * for the "Create Full Report with AI" action. Each source gets a section
+ * (heading + headline metric grid + top breakdown + trend chart); the report is
+ * topped and tailed with AI narrative cards (filled in separately).
+ */
+export function buildAutoReportItems(sources: MetricSource[]): PresetItem[] {
+  const items: PresetItem[] = [];
+  let y = 0;
+
+  items.push({ type: "client_header", x: 0, y, w: 12, h: 2, config: { style: {} } });
+  y += 2;
+  items.push({ type: "ai_summary", x: 0, y, w: 12, h: 3, config: { title: "Executive summary", html: "", style: {} } });
+  y += 3;
+
+  for (const source of sources) {
+    const def = getSourceDef(source);
+    if (!def) continue;
+    items.push({ type: "heading", x: 0, y, w: 12, h: 1, config: { text: def.label, level: "h2", style: {} } });
+    y += 1;
+    const headline = getHeadlineMetrics(source, true, 4);
+    items.push({ type: "metric_grid", x: 0, y, w: 6, h: 3, config: { source, metrics: headline, style: {} } });
+    const bd = primaryBreakdown(source);
+    if (bd) {
+      items.push({ type: "breakdown", x: 6, y, w: 6, h: 3, config: { source, dimension: bd.dimension.type, style: {} } });
+    }
+    y += 3;
+    items.push({ type: "chart", x: 0, y, w: 12, h: 4, config: { source, metric: def.defaultTrend, chartType: "area", style: {} } });
+    y += 4;
+  }
+
+  items.push({ type: "ai_whatchanged", x: 0, y, w: 6, h: 3, config: { title: "What changed", html: "", style: {} } });
+  items.push({ type: "ai_recommendations", x: 6, y, w: 6, h: 3, config: { title: "Recommendations", html: "", style: {} } });
+  return items;
 }

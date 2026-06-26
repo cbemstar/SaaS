@@ -2,12 +2,40 @@
 
 import { useState } from "react";
 import DOMPurify from "isomorphic-dompurify";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Sparkles } from "lucide-react";
 import { applyStyle, type BlockStyle } from "@/components/report-builder/fields";
 import { RichTextEditor } from "@/components/report-builder/rich-text-field";
 import { ImageUploadField } from "@/components/report-builder/image-upload-field";
 import { Labeled, SelectControl, StylePanel, TextControl } from "@/components/report-builder/controls";
+
+// Distinct categorical palette for pie/donut slices (Looker-style).
+const CHART_COLORS = [
+  "var(--report-accent)",
+  "#6366f1",
+  "#f59e0b",
+  "#10b981",
+  "#ef4444",
+  "#06b6d4",
+  "#a855f7",
+  "#ec4899",
+];
 import type { ReportData } from "@/lib/report-builder/types";
 import {
   SOURCES,
@@ -75,31 +103,122 @@ function KpiView({ config, data }: { config: Cfg; data: ReportData | null }) {
 function ChartView({ config, data }: { config: Cfg; data: ReportData | null }) {
   const source = str(config, "source", "ga4");
   const metric = str(config, "metric", "sessions");
+  const chartType = str(config, "chartType", "area");
   const sd = data?.sources[source as MetricSource];
   const def = getMetricDef(source as MetricSource, metric);
   if (!sd || !def) return <Empty text="Pick a source & metric" />;
   const series = sd.daily.map((p) => ({ label: p.label, value: p.metrics[metric] ?? 0 }));
   const gradId = `g-${source}-${metric}`;
+  const axes = (
+    <>
+      <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+      <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={10} interval={Math.max(0, Math.floor(series.length / 7))} />
+      <YAxis tickFormatter={(v) => formatCompact(v)} tickLine={false} axisLine={false} fontSize={10} width={40} />
+      <Tooltip formatter={(v: number) => formatMetric(source as MetricSource, metric, v, data?.currency)} />
+    </>
+  );
   return (
     <div className="flex h-full flex-col">
       <p className="mb-1 text-sm font-semibold">{def.label}</p>
       <div className="min-h-0 flex-1">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
-            <defs>
-              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--report-accent)" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="var(--report-accent)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={10} interval={Math.max(0, Math.floor(series.length / 7))} />
-            <YAxis tickFormatter={(v) => formatCompact(v)} tickLine={false} axisLine={false} fontSize={10} width={40} />
-            <Tooltip formatter={(v: number) => formatMetric(source as MetricSource, metric, v, data?.currency)} />
-            <Area type="monotone" dataKey="value" stroke="var(--report-accent)" strokeWidth={2} fill={`url(#${gradId})`} isAnimationActive={false} />
-          </AreaChart>
+          {chartType === "bar" ? (
+            <BarChart data={series} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+              {axes}
+              <Bar dataKey="value" fill="var(--report-accent)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
+            </BarChart>
+          ) : chartType === "line" ? (
+            <LineChart data={series} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+              {axes}
+              <Line type="monotone" dataKey="value" stroke="var(--report-accent)" strokeWidth={2} dot={false} isAnimationActive={false} />
+            </LineChart>
+          ) : (
+            <AreaChart data={series} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--report-accent)" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="var(--report-accent)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {axes}
+              <Area type="monotone" dataKey="value" stroke="var(--report-accent)" strokeWidth={2} fill={`url(#${gradId})`} isAnimationActive={false} />
+            </AreaChart>
+          )}
         </ResponsiveContainer>
       </div>
+    </div>
+  );
+}
+
+function PieView({ config, data }: { config: Cfg; data: ReportData | null }) {
+  const source = str(config, "source", "ga4");
+  const dimension = str(config, "dimension", "channel_group");
+  const sd = data?.sources[source as MetricSource];
+  const def = getSourceDef(source as MetricSource);
+  if (!sd || !def) return <Empty text="Pick a source" />;
+  const metric = str(config, "metric", def.breakdownMetrics[0] ?? "sessions");
+  const entries = rankBreakdown(source as MetricSource, sd.breakdowns, dimension, 6);
+  const slices = entries.map((e) => ({ name: e.value || "(not set)", value: e.metrics[metric] ?? 0 })).filter((s) => s.value > 0);
+  if (!slices.length) return <Empty text="No breakdown data" />;
+  return (
+    <div className="flex h-full flex-col">
+      <p className="mb-1 text-sm font-semibold">
+        {getMetricDef(source as MetricSource, metric)?.label ?? metric} by {def.dimensions.find((d) => d.type === dimension)?.label.toLowerCase() ?? dimension}
+      </p>
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={slices} dataKey="value" nameKey="name" innerRadius="45%" outerRadius="80%" paddingAngle={2} isAnimationActive={false}>
+              {slices.map((_, i) => (
+                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(v: number) => formatMetric(source as MetricSource, metric, v, data?.currency)} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function TableView({ config, data }: { config: Cfg; data: ReportData | null }) {
+  const source = str(config, "source", "ga4");
+  const dimension = str(config, "dimension", "channel_group");
+  const metrics = arr(config, "metrics");
+  const sd = data?.sources[source as MetricSource];
+  const def = getSourceDef(source as MetricSource);
+  if (!sd || !def) return <Empty text="Pick a source" />;
+  const cols = (metrics.length ? metrics : def.breakdownMetrics.slice(0, 3)).filter((m) => def.breakdownMetrics.includes(m));
+  const entries = rankBreakdown(source as MetricSource, sd.breakdowns, dimension, 10);
+  if (!entries.length || !cols.length) return <Empty text="No breakdown data" />;
+  return (
+    <div className="overflow-auto">
+      <p className="mb-1 text-sm font-semibold">
+        {def.dimensions.find((d) => d.type === dimension)?.label ?? dimension}
+      </p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-xs text-muted-foreground">
+            <th className="py-1 pr-3 text-left font-medium">{def.dimensions.find((d) => d.type === dimension)?.label ?? dimension}</th>
+            {cols.map((m) => (
+              <th key={m} className="py-1 pl-3 text-right font-medium">{getMetricDef(source as MetricSource, m)?.short ?? m}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr key={e.value} className="border-b border-border/50 last:border-0">
+              <td className="truncate py-1 pr-3">{e.value || "(not set)"}</td>
+              {cols.map((m) => (
+                <td key={m} className="py-1 pl-3 text-right font-mono tabular-nums text-muted-foreground">
+                  {formatMetric(source as MetricSource, m, e.metrics[m] ?? 0, data?.currency)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -257,20 +376,108 @@ function dataPanel(kind: "metric" | "dimension") {
   };
 }
 
-function aiEntry(label: string, type: ComponentType, placeholder: string): RegistryEntry {
+function aiEntry(label: string, type: ComponentType, placeholder: string, defaultTitle: string): RegistryEntry {
   return {
     label,
     group: "AI",
     defaultSize: { w: 6, h: 4 },
-    defaultConfig: { html: "", style: {} },
-    Render: ({ config }) => <Html html={str(config, "html")} placeholder={placeholder} />,
+    defaultConfig: { title: defaultTitle, html: "", style: {} },
+    Render: ({ config }) => (
+      <div className="space-y-2">
+        {str(config, "title") && <h3 className="font-display text-base font-semibold">{str(config, "title")}</h3>}
+        <Html html={str(config, "html")} placeholder={placeholder} />
+      </div>
+    ),
     ConfigPanel: ({ config, onChange, ctx }) => (
       <div className="space-y-3">
+        <TextControl label="Heading" value={str(config, "title")} onChange={(v) => onChange({ ...config, title: v })} />
         <AiPanel type={type} config={config} onChange={onChange} ctx={ctx} />
+        <div>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Content — edit or add your own commentary</p>
+          <RichTextEditor value={str(config, "html")} onChange={(html) => onChange({ ...config, html })} />
+        </div>
         <StylePanel style={styleOf(config)} onChange={(s) => onChange({ ...config, style: s })} />
       </div>
     ),
   };
+}
+
+/** Reusable metric multi-select (used by metric grid + table). */
+function MetricMultiSelect({ source, selected, onChange, only }: { source: string; selected: string[]; onChange: (m: string[]) => void; only?: Set<string> }) {
+  const sel = new Set(selected);
+  const opts = metricOptions(source).filter((m) => !only || only.has(m.value));
+  return (
+    <Labeled label="Metrics">
+      <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+        {opts.map((m) => (
+          <label key={m.value} className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={sel.has(m.value)}
+              onChange={(e) => {
+                const next = new Set(sel);
+                if (e.target.checked) next.add(m.value);
+                else next.delete(m.value);
+                onChange([...next]);
+              }}
+            />
+            {m.label}
+          </label>
+        ))}
+      </div>
+    </Labeled>
+  );
+}
+
+const CHART_TYPE_OPTIONS = [
+  { label: "Area", value: "area" },
+  { label: "Line", value: "line" },
+  { label: "Bar", value: "bar" },
+];
+
+function chartPanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
+  const source = str(config, "source", "ga4");
+  return (
+    <div className="space-y-3">
+      <SelectControl label="Source" value={source} options={SOURCE_OPTIONS} onChange={(v) => onChange({ ...config, source: v })} />
+      <SelectControl label="Metric" value={str(config, "metric", "sessions")} options={metricOptions(source)} onChange={(v) => onChange({ ...config, metric: v })} />
+      <SelectControl label="Chart type" value={str(config, "chartType", "area")} options={CHART_TYPE_OPTIONS} onChange={(v) => onChange({ ...config, chartType: v })} />
+      <StylePanel style={styleOf(config)} onChange={(s) => onChange({ ...config, style: s })} />
+    </div>
+  );
+}
+
+function compositionPanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
+  const source = str(config, "source", "ga4");
+  const def = getSourceDef(source as MetricSource);
+  const breakdownOnly = new Set(def?.breakdownMetrics ?? []);
+  return (
+    <div className="space-y-3">
+      <SelectControl label="Source" value={source} options={SOURCE_OPTIONS} onChange={(v) => onChange({ ...config, source: v, metric: "" })} />
+      <SelectControl label="Dimension" value={str(config, "dimension", "channel_group")} options={dimensionOptions(source)} onChange={(v) => onChange({ ...config, dimension: v })} />
+      <SelectControl
+        label="Metric"
+        value={str(config, "metric", def?.breakdownMetrics[0] ?? "sessions")}
+        options={metricOptions(source).filter((m) => breakdownOnly.has(m.value))}
+        onChange={(v) => onChange({ ...config, metric: v })}
+      />
+      <StylePanel style={styleOf(config)} onChange={(s) => onChange({ ...config, style: s })} />
+    </div>
+  );
+}
+
+function tablePanel({ config, onChange }: { config: Cfg; onChange: (c: Cfg) => void }) {
+  const source = str(config, "source", "ga4");
+  const def = getSourceDef(source as MetricSource);
+  const breakdownOnly = new Set(def?.breakdownMetrics ?? []);
+  return (
+    <div className="space-y-3">
+      <SelectControl label="Source" value={source} options={SOURCE_OPTIONS} onChange={(v) => onChange({ ...config, source: v, metrics: [] })} />
+      <SelectControl label="Dimension" value={str(config, "dimension", "channel_group")} options={dimensionOptions(source)} onChange={(v) => onChange({ ...config, dimension: v })} />
+      <MetricMultiSelect source={source} selected={arr(config, "metrics")} onChange={(m) => onChange({ ...config, metrics: m })} only={breakdownOnly} />
+      <StylePanel style={styleOf(config)} onChange={(s) => onChange({ ...config, style: s })} />
+    </div>
+  );
 }
 
 export const REGISTRY: Record<ComponentType, RegistryEntry> = {
@@ -379,9 +586,25 @@ export const REGISTRY: Record<ComponentType, RegistryEntry> = {
     label: "Chart",
     group: "Data",
     defaultSize: { w: 6, h: 4 },
-    defaultConfig: { source: "ga4", metric: "sessions", style: {} },
+    defaultConfig: { source: "ga4", metric: "sessions", chartType: "area", style: {} },
     Render: ChartView,
-    ConfigPanel: dataPanel("metric"),
+    ConfigPanel: chartPanel,
+  },
+  pie: {
+    label: "Pie / donut",
+    group: "Data",
+    defaultSize: { w: 4, h: 4 },
+    defaultConfig: { source: "ga4", dimension: "channel_group", metric: "sessions", style: {} },
+    Render: PieView,
+    ConfigPanel: compositionPanel,
+  },
+  table: {
+    label: "Data table",
+    group: "Data",
+    defaultSize: { w: 6, h: 4 },
+    defaultConfig: { source: "ga4", dimension: "channel_group", metrics: ["sessions", "total_users", "engaged_sessions"], style: {} },
+    Render: TableView,
+    ConfigPanel: tablePanel,
   },
   breakdown: {
     label: "Breakdown table",
@@ -427,10 +650,10 @@ export const REGISTRY: Record<ComponentType, RegistryEntry> = {
       );
     },
   },
-  ai_summary: aiEntry("AI summary", "ai_summary", "Generate an executive summary"),
-  ai_recommendations: aiEntry("AI recommendations", "ai_recommendations", "Generate recommendations"),
-  ai_highlights: aiEntry("AI highlights", "ai_highlights", "Generate highlights / anomalies"),
-  ai_whatchanged: aiEntry("What changed", "ai_whatchanged", "Generate a vs-last-period summary"),
+  ai_summary: aiEntry("AI summary", "ai_summary", "Generate an executive summary", "Executive summary"),
+  ai_recommendations: aiEntry("AI recommendations", "ai_recommendations", "Generate recommendations", "Recommendations"),
+  ai_highlights: aiEntry("AI highlights", "ai_highlights", "Generate highlights / anomalies", "Highlights"),
+  ai_whatchanged: aiEntry("What changed", "ai_whatchanged", "Generate a vs-last-period summary", "What changed"),
 };
 
 /** Renders one item's content with its per-card style box. */
@@ -446,6 +669,6 @@ export function ItemRender({ item, data }: { item: ReportItem; data: ReportData 
 
 export const PALETTE_GROUPS: Array<{ group: "Content" | "Data" | "AI"; types: ComponentType[] }> = [
   { group: "Content", types: ["heading", "text", "image", "client_header", "divider", "spacer"] },
-  { group: "Data", types: ["kpi", "chart", "breakdown", "metric_grid"] },
+  { group: "Data", types: ["kpi", "chart", "pie", "table", "breakdown", "metric_grid"] },
   { group: "AI", types: ["ai_summary", "ai_recommendations", "ai_highlights", "ai_whatchanged"] },
 ];
